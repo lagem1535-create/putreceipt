@@ -1,31 +1,44 @@
 import { auth } from "../login/firebase-config.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js";
 
-const demoKey = "receipt-moa-demo";
+const demoKeyPrefix = "receipt-moa-";
 const initialReceipts = [
   { store: "스타벅스", item: "아메리카노", amount: 5500, category: "카페", date: "2026-09-09" },
   { store: "이마트", item: "식료품", amount: 38200, category: "쇼핑", date: "2026-09-08" },
   { store: "올리브영", item: "생활용품", amount: 21900, category: "쇼핑", date: "2026-09-06" }
 ];
 
-let receipts = JSON.parse(localStorage.getItem(demoKey) || "null") || initialReceipts;
+let receipts = [];
+let storageKey = demoKeyPrefix + "guest";
 const list = document.querySelector("#receiptList");
 const search = document.querySelector("#searchInput");
 const filter = document.querySelector("#categoryFilter");
 const modal = document.querySelector("#scanModal");
 
+function loadReceipts(uid) {
+  storageKey = demoKeyPrefix + uid;
+  const saved = localStorage.getItem(storageKey);
+  if (saved !== null) {
+    try { receipts = JSON.parse(saved) || []; } catch { receipts = []; }
+  } else {
+    receipts = [...initialReceipts];
+    save();
+  }
+}
+
 onAuthStateChanged(auth, (user) => {
   if (!user) {
-    location.href = "../login/index.html";
+    location.replace("../login/index.html");
     return;
   }
   document.querySelector("#userEmail").textContent = user.email || "로그인 사용자";
+  loadReceipts(user.uid);
   render();
 });
 
 document.querySelector("#logoutBtn").addEventListener("click", async () => {
   await signOut(auth);
-  location.href = "../login/index.html";
+  location.replace("../login/index.html");
 });
 
 document.querySelector("#scanBtn").addEventListener("click", () => modal.classList.remove("hidden"));
@@ -52,7 +65,7 @@ document.querySelector("#clearDemoBtn").addEventListener("click", () => {
   render();
 });
 
-function save() { localStorage.setItem(demoKey, JSON.stringify(receipts)); }
+function save() { localStorage.setItem(storageKey, JSON.stringify(receipts)); }
 function won(n) { return new Intl.NumberFormat("ko-KR").format(n) + "원"; }
 function render() {
   const q = search.value.trim().toLowerCase();
@@ -66,4 +79,4 @@ function render() {
   document.querySelector("#receiptCount").textContent = `${receipts.length}장`;
   document.querySelector("#monthCount").textContent = `${monthReceipts.length}장`;
 }
-function escapeHtml(value) { return value.replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c])); }
+function escapeHtml(value) { return String(value).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c])); }

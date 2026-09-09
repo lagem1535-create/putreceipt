@@ -7,10 +7,17 @@ const password = document.querySelector("#password");
 const signupBtn = document.querySelector("#signupBtn");
 const resetBtn = document.querySelector("#resetBtn");
 const message = document.querySelector("#message");
+let redirecting = false;
 
 function showMessage(text, error = false) {
   message.textContent = text;
   message.className = `message ${error ? "error" : "success"}`;
+}
+
+function goMain() {
+  if (redirecting) return;
+  redirecting = true;
+  location.replace("../main/index.html");
 }
 
 form.addEventListener("submit", async (event) => {
@@ -19,7 +26,7 @@ form.addEventListener("submit", async (event) => {
   try {
     await signInWithEmailAndPassword(auth, email.value.trim(), password.value);
     showMessage("로그인되었습니다. 메인 화면으로 이동합니다.");
-    setTimeout(() => { location.href = "../main/index.html"; }, 500);
+    goMain();
   } catch (error) {
     showMessage(firebaseErrorMessage(error.code), true);
   }
@@ -32,8 +39,7 @@ signupBtn.addEventListener("click", async () => {
   }
   try {
     await createUserWithEmailAndPassword(auth, email.value.trim(), password.value);
-    showMessage("회원가입이 완료되었습니다. 메인 화면으로 이동합니다.");
-    setTimeout(() => { location.href = "../main/index.html"; }, 700);
+    goMain();
   } catch (error) {
     showMessage(firebaseErrorMessage(error.code), true);
   }
@@ -53,15 +59,14 @@ resetBtn.addEventListener("click", async () => {
 });
 
 onAuthStateChanged(auth, (user) => {
-  if (user && location.pathname.endsWith("/login/index.html")) {
-    // 이미 로그인한 사용자는 메인으로 이동
-    location.href = "../main/index.html";
-  }
+  if (user) goMain();
 });
 
 function firebaseErrorMessage(code) {
   const messages = {
     "auth/invalid-credential": "이메일 또는 비밀번호가 올바르지 않습니다.",
+    "auth/user-not-found": "가입된 계정을 찾을 수 없습니다.",
+    "auth/wrong-password": "비밀번호가 올바르지 않습니다.",
     "auth/email-already-in-use": "이미 가입된 이메일입니다.",
     "auth/invalid-email": "이메일 형식이 올바르지 않습니다.",
     "auth/weak-password": "비밀번호는 6자 이상이어야 합니다.",

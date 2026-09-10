@@ -11,8 +11,6 @@
     <div class="logo">영수증모아</div>
     <p class="subtitle">영수증을 찍으면 알아서 정리해드려요.</p>
     <form id="loginForm">
-      <label for="nickname">닉네임 <span>(회원가입 시 입력)</span></label>
-      <input id="nickname" type="text" placeholder="회원가입할 때 사용할 닉네임" autocomplete="nickname">
       <label for="email">이메일</label>
       <input id="email" type="email" placeholder="이메일을 입력하세요" autocomplete="email" required>
       <label for="password">비밀번호</label>
@@ -20,7 +18,7 @@
       <button type="submit">로그인</button>
     </form>
     <div class="actions">
-      <button id="signupBtn" class="secondary" type="button">회원가입</button>
+      <a class="secondary-link" href="../signup/">회원가입</a>
       <button id="resetBtn" class="text-btn" type="button">비밀번호 재설정</button>
     </div>
     <p id="message" class="message"></p>

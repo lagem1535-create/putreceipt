@@ -1,4 +1,4 @@
-import { auth, authPersistenceReady } from "./firebase-config.js";
+import { auth, db, authPersistenceReady } from "./firebase-config.js";
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -6,6 +6,7 @@ import {
   updateProfile,
   onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js";
+import { ref, set } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js";
 
 const form = document.querySelector("#loginForm");
 const nickname = document.querySelector("#nickname");
@@ -48,14 +49,27 @@ signupBtn.addEventListener("click", async () => {
   const nicknameValue = nickname.value.trim();
   const emailValue = email.value.trim();
   if (!nicknameValue || !emailValue || !password.value) {
-    showMessage("닉네임, 이메일, 비밀번호를 입력해주세요.", true);
+    showMessage("회원가입할 때는 닉네임, 이메일, 비밀번호를 입력해주세요.", true);
     return;
   }
+
   try {
     showMessage("회원가입 중...");
     await waitForAuthPersistence();
+
     const credential = await createUserWithEmailAndPassword(auth, emailValue, password.value);
-    await updateProfile(credential.user, { displayName: nicknameValue });
+    const user = credential.user;
+
+    // Firebase Authentication 프로필에도 닉네임 저장
+    await updateProfile(user, { displayName: nicknameValue });
+
+    // Realtime Database에도 사용자 정보를 저장
+    await set(ref(db, `users/${user.uid}/profile`), {
+      nickname: nicknameValue,
+      email: user.email || emailValue,
+      createdAt: new Date().toISOString()
+    });
+
     showMessage("회원가입되었습니다.");
     goMain();
   } catch (error) {

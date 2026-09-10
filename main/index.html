@@ -3,23 +3,31 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>영수증모아 - 메인</title>
+  <title>영수증모아 - 홈</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">영수증모아</div>
+    <a class="brand" href="./">영수증모아</a>
+    <nav class="main-nav" aria-label="기간별 보기">
+      <a href="../day/">일</a><a href="../week/">주</a><a href="../month/">월</a><a href="../year/">년</a>
+    </nav>
     <button id="logoutBtn" class="logout">로그아웃</button>
   </header>
 
   <main class="container">
-    <section class="welcome">
+    <section class="hero">
       <div>
         <p class="eyebrow">MY RECEIPTS</p>
         <h1 id="welcomeMessage">안녕하세요!</h1>
         <p id="userEmail" class="user-email"></p>
       </div>
       <button id="scanBtn" class="scan-btn">＋ 영수증 추가</button>
+    </section>
+
+    <section class="period-nav">
+      <a class="active" href="./">전체</a>
+      <a href="../day/">일</a><a href="../week/">주</a><a href="../month/">월</a><a href="../year/">년</a>
     </section>
 
     <section class="summary-grid">
@@ -31,18 +39,12 @@
     <section class="toolbar">
       <div class="search-box"><span>⌕</span><input id="searchInput" placeholder="가게명, 상품명으로 검색"></div>
       <select id="categoryFilter">
-        <option value="all">전체 카테고리</option>
-        <option value="식비">식비</option>
-        <option value="카페">카페</option>
-        <option value="쇼핑">쇼핑</option>
-        <option value="교통">교통</option>
-        <option value="의료">의료</option>
-        <option value="기타">기타</option>
+        <option value="all">전체 카테고리</option><option value="식비">식비</option><option value="카페">카페</option><option value="쇼핑">쇼핑</option><option value="교통">교통</option><option value="의료">의료</option><option value="기타">기타</option>
       </select>
     </section>
 
     <section class="content-card">
-      <div class="section-title"><h2>최근 영수증</h2></div>
+      <div class="section-title"><h2>최근 영수증</h2><span class="live-badge">Firebase 동기화</span></div>
       <div id="receiptList" class="receipt-list"></div>
     </section>
   </main>
@@ -50,13 +52,10 @@
   <div id="scanModal" class="modal hidden">
     <div class="modal-card">
       <button id="closeModal" class="close">×</button>
-      <h2>영수증 추가</h2>
-      <p>지금은 HTML MVP 단계라 촬영 대신 직접 입력할 수 있어요.</p>
-      <input id="storeInput" placeholder="가게명">
-      <input id="amountInput" type="number" placeholder="금액">
+      <h2>영수증 추가</h2><p>가게명과 금액을 입력하면 Firebase에 저장됩니다.</p>
+      <input id="storeInput" placeholder="가게명"><input id="amountInput" type="number" placeholder="금액">
       <select id="categoryInput"><option>식비</option><option>카페</option><option>쇼핑</option><option>교통</option><option>의료</option><option>기타</option></select>
-      <input id="itemInput" placeholder="상품명 (선택)">
-      <button id="saveReceipt" class="primary">영수증 저장</button>
+      <input id="itemInput" placeholder="상품명 (선택)"><button id="saveReceipt" class="primary">영수증 저장</button>
     </div>
   </div>
   <script type="module" src="app.js"></script>

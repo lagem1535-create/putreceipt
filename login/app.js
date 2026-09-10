@@ -3,10 +3,12 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
+  updateProfile,
   onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js";
 
 const form = document.querySelector("#loginForm");
+const nickname = document.querySelector("#nickname");
 const email = document.querySelector("#email");
 const password = document.querySelector("#password");
 const signupBtn = document.querySelector("#signupBtn");
@@ -43,15 +45,17 @@ form.addEventListener("submit", async (event) => {
 });
 
 signupBtn.addEventListener("click", async () => {
+  const nicknameValue = nickname.value.trim();
   const emailValue = email.value.trim();
-  if (!emailValue || !password.value) {
-    showMessage("이메일과 비밀번호를 입력해주세요.", true);
+  if (!nicknameValue || !emailValue || !password.value) {
+    showMessage("닉네임, 이메일, 비밀번호를 입력해주세요.", true);
     return;
   }
   try {
     showMessage("회원가입 중...");
     await waitForAuthPersistence();
-    await createUserWithEmailAndPassword(auth, emailValue, password.value);
+    const credential = await createUserWithEmailAndPassword(auth, emailValue, password.value);
+    await updateProfile(credential.user, { displayName: nicknameValue });
     showMessage("회원가입되었습니다.");
     goMain();
   } catch (error) {

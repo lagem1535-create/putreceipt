@@ -14,8 +14,8 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
+
+// 모든 페이지가 반드시 같은 Firebase App / RTDB 인스턴스를 사용하도록 공유합니다.
 export const auth = getAuth(app);
 export const db = getDatabase(app);
-
-// 로그인 상태를 브라우저에 유지합니다.
 export const authPersistenceReady = setPersistence(auth, browserLocalPersistence);

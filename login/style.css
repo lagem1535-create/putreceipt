@@ -1,16 +1,1 @@
-* { box-sizing: border-box; }
-body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f7f7f5; color: #202124; }
-.login-card { width: min(100%, 420px); padding: 36px; border-radius: 24px; background: #fff; box-shadow: 0 12px 40px rgba(0,0,0,.08); }
-.logo { text-align: center; font-size: 30px; font-weight: 800; }
-.subtitle { margin: 10px 0 30px; text-align: center; color: #777; font-size: 14px; }
-label { display: block; margin: 16px 0 7px; font-size: 14px; font-weight: 700; }
-input { width: 100%; padding: 14px 15px; border: 1px solid #ddd; border-radius: 12px; font-size: 15px; outline: none; }
-input:focus { border-color: #222; }
-button { width: 100%; margin-top: 20px; padding: 14px; border: 0; border-radius: 12px; background: #222; color: #fff; font-size: 15px; font-weight: 700; cursor: pointer; }
-.actions { display: grid; gap: 8px; margin-top: 8px; }
-.secondary-link { display: block; width: 100%; margin-top: 12px; padding: 14px; border-radius: 12px; background: #eee; color: #222; text-align: center; text-decoration: none; font-size: 15px; font-weight: 700; }
-button.secondary { background: #eee; color: #222; }
-button.text-btn { margin-top: 4px; background: transparent; color: #666; font-weight: 500; }
-.message { min-height: 20px; margin: 18px 0 0; text-align: center; font-size: 13px; }
-.message.success { color: #188038; }
-.message.error { color: #d93025; }
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans KR",sans-serif;background:#f4f7ff;color:#172033}.login-card{width:min(100%,420px);padding:38px;background:#fff;border:1px solid #e2e8ff;border-radius:22px;box-shadow:0 16px 45px rgba(55,85,180,.10)}.logo{text-align:center;font-size:30px;font-weight:900;letter-spacing:-1.2px;color:#315bea}.subtitle{margin:10px 0 30px;text-align:center;color:#7b8499;font-size:14px}label{display:block;margin:16px 0 7px;font-size:14px;font-weight:750;color:#30394d}input{width:100%;padding:14px 15px;border:1px solid #dbe2f2;border-radius:11px;background:#fbfcff;color:#172033;font-size:15px;outline:none;transition:.15s}input:focus{border-color:#4b6ff0;box-shadow:0 0 0 3px rgba(75,111,240,.10);background:#fff}form button{width:100%;margin-top:20px;padding:14px;border:0;border-radius:11px;background:#315bea;color:#fff;font-size:15px;font-weight:800;cursor:pointer;box-shadow:0 6px 16px rgba(49,91,234,.20);transition:.15s}form button:hover{background:#274dd0}.actions{display:grid;gap:8px;margin-top:8px}.secondary-link{display:block;width:100%;margin-top:12px;padding:14px;border:1px solid #dbe2f2;border-radius:11px;background:#f5f7ff;color:#315bea;text-align:center;text-decoration:none;font-size:15px;font-weight:750}.secondary-link:hover{background:#edf1ff}button.secondary{background:#edf1ff;color:#315bea}button.text-btn{margin-top:4px;background:transparent;color:#7b8499;font-weight:500;box-shadow:none}.message{min-height:20px;margin:18px 0 0;text-align:center;font-size:13px}.message.success{color:#188038}.message.error{color:#d93025}@media(max-width:480px){body{padding:16px;background:#f4f7ff}.login-card{padding:28px 20px;border-radius:18px}.logo{font-size:27px}.subtitle{margin-bottom:24px;font-size:13px}}

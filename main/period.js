@@ -2,7 +2,7 @@ import { auth, db, authPersistenceReady } from "../login/firebase-config.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js";
 import { ref, onValue } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js";
 
-const period=document.body.dataset.period;let receipts=[];let unsubscribe=null;
+const period=document.body.dataset.period;let receipts=[];let unsubscribe=null;let dayDetail=false;
 const won=n=>new Intl.NumberFormat("ko-KR").format(Math.round(n||0))+"원";
 const key=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 const dateOf=r=>new Date(`${r.date||"1970-01-01"}T${r.time||"00:00"}:00`);
@@ -19,7 +19,19 @@ const labels={day:"일별",week:"주별",month:"달별",year:"연별"};
 const descriptions={day:"하루의 지출을 실제 결제 시간 기준으로 확인하세요.",week:"한 주를 달력으로 보면서 어느 날 지출했는지 확인하세요.",month:"이번 달의 소비 흐름을 달력과 함께 확인하세요.",year:"올해 12개월의 지출 흐름을 한눈에 확인하세요."};
 function render(){const{start,end}=currentData(),current=receipts.filter(r=>inRange(r,start,end));document.querySelector("#periodTotal").textContent=won(sum(current));document.querySelector("#periodCount").textContent=`${current.length}장`;document.querySelector("#avgAmount").textContent=won(current.length?sum(current)/current.length:0);document.querySelector("#welcome").textContent=`${window.receiptUserName||"사용자"}님의 ${labels[period]} 지출`;const desc=document.querySelector("#description");if(desc)desc.textContent=descriptions[period];renderSpecial(start);renderCategories(current);renderReceipts(current);if(period==="day")updateDayControls(start)}
 function renderSpecial(start){if(period==="day")renderDay(start);if(period==="week")renderWeek(start);if(period==="month")renderMonth(start);if(period==="year")renderYear(start)}
-function renderDay(start){const vals=Array.from({length:24},(_,h)=>sum(receipts.filter(r=>sameDate(r,start)&&dateOf(r).getHours()===h))),max=Math.max(...vals,1);document.querySelector("#specialView").innerHTML=`<div class="day-hours">${vals.map((v,h)=>`<div class="hour-row"><span class="hour-label">${String(h).padStart(2,"0")}시</span><div class="hour-track"><i style="width:${v?Math.max(v/max*100,4):0}%"></i></div><strong>${v?won(v):"-"}</strong></div>`).join("")}</div>`}
+function renderDay(start){
+ const dayReceipts=receipts.filter(r=>sameDate(r,start));
+ if(dayDetail){
+   const vals=Array.from({length:24},(_,h)=>sum(dayReceipts.filter(r=>dateOf(r).getHours()===h))),max=Math.max(...vals,1);
+   document.querySelector("#specialView").innerHTML=`<div class="day-hours">${vals.map((v,h)=>`<div class="hour-row"><span class="hour-label">${String(h).padStart(2,"0")}시</span><div class="hour-track"><i style="width:${v?Math.max(v/max*100,4):0}%"></i></div><strong>${v?won(v):"-"}</strong></div>`).join("")}</div>`;
+ }else{
+   const groups=Array.from({length:6},(_,i)=>{const from=i*4,to=from+3,rs=dayReceipts.filter(r=>{const h=dateOf(r).getHours();return h>=from&&h<from+4});return{from,to,total:sum(rs),count:rs.length}});
+   const max=Math.max(...groups.map(g=>g.total),1);
+   document.querySelector("#specialView").innerHTML=`<div class="four-hour-grid">${groups.map(g=>`<div class="four-hour-card"><div class="four-hour-label">${String(g.from).padStart(2,"0")}시 ~ ${String(g.to).padStart(2,"0")}시</div><strong>${g.total?won(g.total):"0원"}</strong><span>${g.count}건</span><div class="four-hour-track"><i style="width:${g.total?Math.max(g.total/max*100,5):0}%"></i></div></div>`).join("")}</div>`;
+ }
+ const hint=document.querySelector("#specialHint");if(hint)hint.innerHTML=`<span>4시간 단위</span><button id="dayDetailBtn" class="detail-btn" type="button">${dayDetail?"간단히 보기":"자세히 보기"}</button>`;
+ document.querySelector("#dayDetailBtn")?.addEventListener("click",()=>{dayDetail=!dayDetail;renderDay(start)});
+}
 function renderWeek(start){const days=Array.from({length:7},(_,i)=>addDays(start,i));document.querySelector("#specialView").innerHTML=`<div class="week-calendar">${days.map(d=>{const rs=receipts.filter(r=>sameDate(r,d)),total=sum(rs);return `<div class="week-day ${key(d)===key(new Date())?"today":""}"><div class="week-day-head"><span>${["월","화","수","목","금","토","일"][d.getDay()===0?6:d.getDay()-1]}</span><b>${d.getDate()}</b></div><div class="week-day-total">${total?won(total):"-"}</div><div class="week-dots">${rs.slice(0,3).map(()=>"<i></i>").join("")}</div></div>`}).join("")}</div>`}
 function renderMonth(start){const firstDay=new Date(start.getFullYear(),start.getMonth(),1),days=new Date(start.getFullYear(),start.getMonth()+1,0).getDate(),offset=(firstDay.getDay()+6)%7;let cells="";for(let i=0;i<offset;i++)cells+='<div class="month-cell empty-cell"></div>';for(let n=1;n<=days;n++){const d=new Date(start.getFullYear(),start.getMonth(),n),total=sum(receipts.filter(r=>sameDate(r,d)));cells+=`<div class="month-cell ${key(d)===key(new Date())?"today":""}"><span>${n}</span>${total?`<strong>${won(total).replace("원","")}</strong>`:""}</div>`}document.querySelector("#specialView").innerHTML=`<div class="calendar-weekdays">${["월","화","수","목","금","토","일"].map(x=>`<span>${x}</span>`).join("")}</div><div class="month-calendar">${cells}</div>`}
 function renderYear(start){const months=Array.from({length:12},(_,i)=>new Date(start.getFullYear(),i,1)),vals=months.map(d=>sum(receipts.filter(r=>r.date?.startsWith(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`)))),max=Math.max(...vals,1);document.querySelector("#specialView").innerHTML=`<div class="year-grid">${months.map((d,i)=>`<div class="year-month"><span>${i+1}월</span><strong>${won(vals[i])}</strong><div class="year-track"><i style="height:${Math.max(vals[i]/max*100,vals[i]?6:2)}%"></i></div></div>`).join("")}</div>`}

@@ -224,7 +224,7 @@ function loadTesseract(){
     const script=document.createElement("script");
     script.src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
     script.onload=()=>resolve(window.Tesseract);
-    script.onerror=()=>reject(new Error("OCR 라이브러리를 불러오지 못했습니다."));
+    script.onerror=()=>reject(new Error("인식 기능을 불러오지 못했습니다."));
     document.head.appendChild(script);
   });
   return tesseractLoading;
@@ -287,7 +287,7 @@ function parsePaymentMethod(text){ if(/신용카드|체크카드|카드\s*승인
 async function runOcr(){
   if(!ocrPhotoDataUrl||!ocrStatus)return;
   if(recognizeBtn)recognizeBtn.disabled=true;
-  ocrStatus.textContent="OCR 엔진을 불러오는 중...";
+  ocrStatus.textContent="준비하는 중...";
   try{
     const Tesseract=await loadTesseract();
     ocrStatus.textContent="영수증을 읽는 중... (최대 30초 소요)";

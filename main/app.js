@@ -89,10 +89,35 @@ function render(){
     return `<article class="receipt-row">${thumb}<div class="receipt-info"><strong>${escapeHtml(r.store)}</strong><span>${escapeHtml(r.item)} · ${escapeHtml(r.category)}</span>${badge}</div><div class="receipt-date">${escapeHtml(r.date)} ${escapeHtml(r.time||"")}</div><strong class="receipt-amount">${won(r.amount)}</strong><div class="receipt-actions"><button class="edit-receipt" data-id="${escapeHtml(r.id)}" type="button">수정</button><button class="delete-receipt" data-id="${escapeHtml(r.id)}" type="button">삭제</button></div></article>`;
   }).join("") : `<div class="empty">아직 영수증이 없습니다.<br><span>영수증 스캔 버튼으로 첫 영수증을 저장해보세요.</span></div>`;
   const month=localDate().slice(0,7), monthReceipts=receipts.filter(r=>String(r.date||"").startsWith(month));
-  if($("#monthTotal")) $("#monthTotal").textContent=won(monthReceipts.reduce((s,r)=>s+Number(r.amount||0),0));
+  const monthTotal=monthReceipts.reduce((s,r)=>s+Number(r.amount||0),0);
+  if($("#monthTotal")) $("#monthTotal").textContent=won(monthTotal);
   if($("#receiptCount")) $("#receiptCount").textContent=`${receipts.length}장`;
   if($("#monthCount")) $("#monthCount").textContent=`${monthReceipts.length}장`;
+  renderMonthDelta(monthTotal);
+  renderCategoryBreakdown(monthReceipts);
   renderUpcoming();
+}
+
+function monthKey(offset){ const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()+offset); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`; }
+
+function renderMonthDelta(monthTotal){
+  const el=$("#monthDelta"); if(!el) return;
+  const lastMonth=monthKey(-1);
+  const lastTotal=receipts.filter(r=>String(r.date||"").startsWith(lastMonth)).reduce((s,r)=>s+Number(r.amount||0),0);
+  if(!lastTotal){ el.textContent=""; el.className="delta"; return; }
+  const pct=Math.round((monthTotal-lastTotal)/lastTotal*100);
+  if(pct===0){ el.textContent="전월과 동일"; el.className="delta flat"; return; }
+  el.textContent=`전월 대비 ${Math.abs(pct)}% ${pct>0?"증가":"감소"}`;
+  el.className=`delta ${pct>0?"up":"down"}`;
+}
+
+function renderCategoryBreakdown(monthReceipts){
+  const el=$("#categoryBreakdown"); if(!el) return;
+  const cats=["식비","카페","교통","생필품","쇼핑","의료","기타"];
+  const totals=cats.map(c=>({ c, v: monthReceipts.filter(r=>r.category===c).reduce((s,r)=>s+Number(r.amount||0),0) })).filter(x=>x.v>0).sort((a,b)=>b.v-a.v);
+  if(!totals.length){ el.innerHTML=`<div class="category-empty">이번 달 지출 내역이 아직 없습니다.</div>`; return; }
+  const max=Math.max(...totals.map(x=>x.v));
+  el.innerHTML=totals.map(x=>`<div class="cat-row"><span class="cat-name">${escapeHtml(x.c)}</span><div class="cat-track"><div class="cat-fill" style="width:${Math.max(x.v/max*100,4)}%"></div></div><span class="cat-amount">${won(x.v)}</span></div>`).join("");
 }
 
 function renderUpcoming(){
@@ -330,11 +355,11 @@ onAuthStateChanged(auth,user=>{
 });
 onValue(ref(db,".info/connected"),snapshot=>setSyncStatus(snapshot.val()===true?"Firebase 연결됨":"Firebase 오프라인",snapshot.val()===true),()=>setSyncStatus("Firebase 연결 확인 실패",false));
 
-if(notifyBtn && "Notification" in window && Notification.permission==="granted"){ notifyBtn.textContent="🔔 알림 켜짐"; notifyBtn.disabled=true; }
+if(notifyBtn && "Notification" in window && Notification.permission==="granted"){ notifyBtn.textContent="알림 켜짐"; notifyBtn.disabled=true; }
 notifyBtn?.addEventListener("click", async ()=>{
   if(!("Notification" in window))return window.alert("이 브라우저는 알림을 지원하지 않습니다.");
   const permission=await Notification.requestPermission();
-  if(permission==="granted"){ notifyBtn.textContent="🔔 알림 켜짐"; notifyBtn.disabled=true; checkDeadlineNotifications(); }
+  if(permission==="granted"){ notifyBtn.textContent="알림 켜짐"; notifyBtn.disabled=true; checkDeadlineNotifications(); }
   else window.alert("알림 권한이 거부되었습니다.");
 });
 

@@ -255,18 +255,12 @@ function loadTesseract(){
   return tesseractLoading;
 }
 
-function resizeImage(file,maxSize,quality){
+function loadImage(file){
   return new Promise((resolve,reject)=>{
     const reader=new FileReader();
     reader.onload=()=>{
       const img=new Image();
-      img.onload=()=>{
-        const scale=Math.min(1,maxSize/Math.max(img.width,img.height));
-        const w=Math.max(1,Math.round(img.width*scale)), h=Math.max(1,Math.round(img.height*scale));
-        const canvas=document.createElement("canvas"); canvas.width=w; canvas.height=h;
-        canvas.getContext("2d").drawImage(img,0,0,w,h);
-        resolve(canvas.toDataURL("image/jpeg",quality));
-      };
+      img.onload=()=>resolve(img);
       img.onerror=()=>reject(new Error("이미지를 불러오지 못했습니다."));
       img.src=reader.result;
     };
@@ -274,13 +268,53 @@ function resizeImage(file,maxSize,quality){
     reader.readAsDataURL(file);
   });
 }
+function resizeImage(img,maxSize,quality){
+  const scale=Math.min(1,maxSize/Math.max(img.width,img.height));
+  const w=Math.max(1,Math.round(img.width*scale)), h=Math.max(1,Math.round(img.height*scale));
+  const canvas=document.createElement("canvas"); canvas.width=w; canvas.height=h;
+  canvas.getContext("2d").drawImage(img,0,0,w,h);
+  return canvas.toDataURL("image/jpeg",quality);
+}
+function prepareOcrImage(img,maxSize){
+  const scale=Math.min(1,maxSize/Math.max(img.width,img.height));
+  const w=Math.max(1,Math.round(img.width*scale)), h=Math.max(1,Math.round(img.height*scale));
+  const canvas=document.createElement("canvas"); canvas.width=w; canvas.height=h;
+  const ctx=canvas.getContext("2d");
+  ctx.drawImage(img,0,0,w,h);
+  const imageData=ctx.getImageData(0,0,w,h), data=imageData.data;
+  const gray=new Float32Array(data.length/4);
+  let min=255,max=0;
+  for(let i=0;i<data.length;i+=4){
+    const g=0.299*data[i]+0.587*data[i+1]+0.114*data[i+2];
+    gray[i/4]=g; if(g<min)min=g; if(g>max)max=g;
+  }
+  const range=Math.max(max-min,1);
+  for(let i=0;i<data.length;i+=4){
+    const stretched=Math.min(255,Math.max(0,((gray[i/4]-min)/range)*255));
+    data[i]=data[i+1]=data[i+2]=stretched;
+  }
+  ctx.putImageData(imageData,0,0);
+  return canvas.toDataURL("image/png");
+}
 
 function parseAmount(text){
-  const lines=text.split(/\n/);
-  const pull=(line)=>{ const m=line.match(/\d{1,3}(?:[,.\s]\d{3})+|\d{4,}/g); if(!m)return null; const nums=m.map(s=>Number(s.replace(/[,.\s]/g,""))).filter(n=>Number.isFinite(n)&&n>0&&n<100000000); return nums.length?Math.max(...nums):null; };
-  const keyed=lines.find(l=>/(합\s*계|총\s*액|받을\s*금액|결제\s*금액|판매\s*금액|카드\s*금액|승인\s*금액|청구\s*금액)/.test(l));
-  if(keyed){ const v=pull(keyed); if(v) return v; }
-  let best=0; for(const line of lines){ const v=pull(line); if(v&&v>best) best=v; }
+  const lines=text.split(/\n/).map(l=>l.trim()).filter(Boolean);
+  const isNoise=(line)=>/번호|사업자|가맹점|전화|tel|대표자|일시|승인시각|카드\s*번호/i.test(line);
+  const moneyValues=(line)=>{
+    const values=[];
+    for(const m of line.matchAll(/([\d]{1,3}(?:,\d{3})+)\s*원?/g)) values.push(Number(m[1].replace(/,/g,"")));
+    for(const m of line.matchAll(/(\d+)\s*원/g)) values.push(Number(m[1]));
+    return values.filter(n=>Number.isFinite(n)&&n>0&&n<100000000);
+  };
+  const keyedLine=lines.find(l=>!isNoise(l)&&/(합\s*계|총\s*액|받을\s*금액|결제\s*금액|판매\s*금액|카드\s*금액|승인\s*금액|청구\s*금액)/.test(l));
+  if(keyedLine){ const v=moneyValues(keyedLine); if(v.length) return Math.max(...v); }
+  for(const line of lines.slice(0,5)){
+    if(isNoise(line)) continue;
+    const v=moneyValues(line);
+    if(v.length) return Math.max(...v);
+  }
+  let best=0;
+  for(const line of lines){ if(isNoise(line)) continue; for(const v of moneyValues(line)) if(v>best) best=v; }
   return best||null;
 }
 function parseDate(text){
@@ -335,8 +369,11 @@ photoInput?.addEventListener("change", async ()=>{
   const file=photoInput.files?.[0]; if(!file||!ocrStatus)return;
   try{
     ocrStatus.textContent="사진을 불러오는 중...";
-    [ocrPhotoDataUrl,thumbPhotoDataUrl]=await Promise.all([resizeImage(file,1400,0.82),resizeImage(file,360,0.55)]);
-    if(photoPreview){photoPreview.src=ocrPhotoDataUrl;photoPreview.classList.remove("hidden");}
+    const img=await loadImage(file);
+    const previewDataUrl=resizeImage(img,900,0.85);
+    thumbPhotoDataUrl=resizeImage(img,360,0.55);
+    ocrPhotoDataUrl=prepareOcrImage(img,1800);
+    if(photoPreview){photoPreview.src=previewDataUrl;photoPreview.classList.remove("hidden");}
     photoDropText?.classList.add("hidden");
     if(recognizeBtn)recognizeBtn.disabled=false;
     ocrStatus.textContent="자동 인식 버튼을 눌러 정보를 읽어오세요.";

@@ -10,7 +10,6 @@ let stopReceipts = null;
 let categoryManuallySet = false;
 let ocrPhotoDataUrl = null;
 let thumbPhotoDataUrl = null;
-let pendingPaymentMethod = null;
 let tesseractLoading = null;
 
 const list = $("#receiptList");
@@ -59,6 +58,7 @@ function getFilters() {
   return {
     q: search?.value.trim().toLowerCase() || "",
     category: filter?.value || "all",
+    payment: $("#paymentFilter")?.value || "all",
     dateFrom: $("#dateFromInput")?.value || "",
     dateTo: $("#dateToInput")?.value || "",
     minAmount: Number($("#minAmountInput")?.value) || 0,
@@ -69,13 +69,21 @@ function filterReceipts() {
   const f = getFilters();
   return receipts.filter(r => {
     if (f.category !== "all" && r.category !== f.category) return false;
-    if (f.q && !`${r.store||""} ${r.item||""}`.toLowerCase().includes(f.q)) return false;
+    if (f.payment !== "all" && (r.paymentMethod||"미입력") !== f.payment) return false;
+    if (f.q && !`${r.store||""} ${r.item||""} ${r.paymentMethod||""}`.toLowerCase().includes(f.q)) return false;
     if (f.dateFrom && (r.date||"") < f.dateFrom) return false;
     if (f.dateTo && (r.date||"") > f.dateTo) return false;
     const amt = Number(r.amount) || 0;
     if (amt < f.minAmount || amt > f.maxAmount) return false;
     return true;
   });
+}
+function renderPaymentFilterOptions(){
+  const el=$("#paymentFilter"); if(!el) return;
+  const current=el.value||"all";
+  const methods=[...new Set(receipts.map(r=>r.paymentMethod||"미입력"))].sort();
+  el.innerHTML=`<option value="all">전체 결제수단</option>`+methods.map(m=>`<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join("");
+  if(methods.includes(current)||current==="all") el.value=current;
 }
 
 function render(){
@@ -86,7 +94,8 @@ function render(){
     const soonest = Object.entries(deadlines).map(([type,date])=>({type,days:daysUntil(date)})).filter(d=>d.days>=0).sort((a,b)=>a.days-b.days)[0];
     const badge = soonest ? `<span class="deadline-badge ${soonest.days<=3?"soon":"later"}">${DEADLINE_LABEL[soonest.type]} D-${soonest.days}</span>` : "";
     const thumb = r.photo ? `<img class="receipt-thumb" src="${escapeHtml(r.photo)}" alt="영수증 사진">` : `<div class="receipt-icon">₩</div>`;
-    return `<article class="receipt-row">${thumb}<div class="receipt-info"><strong>${escapeHtml(r.store)}</strong><span>${escapeHtml(r.item)} · ${escapeHtml(r.category)}</span>${badge}</div><div class="receipt-date">${escapeHtml(r.date)} ${escapeHtml(r.time||"")}</div><strong class="receipt-amount">${won(r.amount)}</strong><div class="receipt-actions"><button class="edit-receipt" data-id="${escapeHtml(r.id)}" type="button">수정</button><button class="delete-receipt" data-id="${escapeHtml(r.id)}" type="button">삭제</button></div></article>`;
+    const paymentTag = r.paymentMethod ? ` · ${escapeHtml(r.paymentMethod)}` : "";
+    return `<article class="receipt-row">${thumb}<div class="receipt-info"><strong>${escapeHtml(r.store)}</strong><span>${escapeHtml(r.item)} · ${escapeHtml(r.category)}${paymentTag}</span>${badge}</div><div class="receipt-date">${escapeHtml(r.date)} ${escapeHtml(r.time||"")}</div><strong class="receipt-amount">${won(r.amount)}</strong><div class="receipt-actions"><button class="edit-receipt" data-id="${escapeHtml(r.id)}" type="button">수정</button><button class="delete-receipt" data-id="${escapeHtml(r.id)}" type="button">삭제</button></div></article>`;
   }).join("") : `<div class="empty">아직 영수증이 없습니다.<br><span>영수증 스캔 버튼으로 첫 영수증을 저장해보세요.</span></div>`;
   const month=localDate().slice(0,7), monthReceipts=receipts.filter(r=>String(r.date||"").startsWith(month));
   const monthTotal=monthReceipts.reduce((s,r)=>s+Number(r.amount||0),0);
@@ -95,6 +104,8 @@ function render(){
   if($("#monthCount")) $("#monthCount").textContent=`${monthReceipts.length}장`;
   renderMonthDelta(monthTotal);
   renderCategoryBreakdown(monthReceipts);
+  renderPaymentBreakdown(monthReceipts);
+  renderPaymentFilterOptions();
   renderUpcoming();
 }
 
@@ -115,6 +126,16 @@ function renderCategoryBreakdown(monthReceipts){
   const el=$("#categoryBreakdown"); if(!el) return;
   const cats=["식비","카페","교통","생필품","쇼핑","의료","기타"];
   const totals=cats.map(c=>({ c, v: monthReceipts.filter(r=>r.category===c).reduce((s,r)=>s+Number(r.amount||0),0) })).filter(x=>x.v>0).sort((a,b)=>b.v-a.v);
+  if(!totals.length){ el.innerHTML=`<div class="category-empty">이번 달 지출 내역이 아직 없습니다.</div>`; return; }
+  const max=Math.max(...totals.map(x=>x.v));
+  el.innerHTML=totals.map(x=>`<div class="cat-row"><span class="cat-name">${escapeHtml(x.c)}</span><div class="cat-track"><div class="cat-fill" style="width:${Math.max(x.v/max*100,4)}%"></div></div><span class="cat-amount">${won(x.v)}</span></div>`).join("");
+}
+
+function renderPaymentBreakdown(monthReceipts){
+  const el=$("#paymentBreakdown"); if(!el) return;
+  const groups={};
+  monthReceipts.forEach(r=>{ const key=r.paymentMethod||"미입력"; groups[key]=(groups[key]||0)+Number(r.amount||0); });
+  const totals=Object.entries(groups).map(([c,v])=>({c,v})).filter(x=>x.v>0).sort((a,b)=>b.v-a.v).slice(0,6);
   if(!totals.length){ el.innerHTML=`<div class="category-empty">이번 달 지출 내역이 아직 없습니다.</div>`; return; }
   const max=Math.max(...totals.map(x=>x.v));
   el.innerHTML=totals.map(x=>`<div class="cat-row"><span class="cat-name">${escapeHtml(x.c)}</span><div class="cat-track"><div class="cat-fill" style="width:${Math.max(x.v/max*100,4)}%"></div></div><span class="cat-amount">${won(x.v)}</span></div>`).join("");
@@ -176,10 +197,10 @@ function closeModal(target){ if(target)target.classList.add("hidden"); }
 function closeEdit(){ editingId=null; closeModal(editModal); }
 
 function resetScanForm(){
-  ["storeInput","amountInput","itemInput","refundDaysInput","exchangeDaysInput","warrantyMonthsInput"].forEach(id=>{const el=$("#"+id); if(el) el.value="";});
+  ["storeInput","amountInput","itemInput","paymentMethodInput","refundDaysInput","exchangeDaysInput","warrantyMonthsInput"].forEach(id=>{const el=$("#"+id); if(el) el.value="";});
   if($("#categoryInput")) $("#categoryInput").value="식비";
   if(photoInput) photoInput.value="";
-  ocrPhotoDataUrl=null; thumbPhotoDataUrl=null; pendingPaymentMethod=null; categoryManuallySet=false;
+  ocrPhotoDataUrl=null; thumbPhotoDataUrl=null; categoryManuallySet=false;
   if(photoPreview){ photoPreview.src=""; photoPreview.classList.add("hidden"); }
   if(photoDropText) photoDropText.classList.remove("hidden");
   if(recognizeBtn) recognizeBtn.disabled=true;
@@ -202,14 +223,14 @@ async function handleSave(){
   const exchangeDays=Number($("#exchangeDaysInput")?.value); if(exchangeDays>0) payload.exchangeDays=exchangeDays;
   const warrantyMonths=Number($("#warrantyMonthsInput")?.value); if(warrantyMonths>0) payload.warrantyMonths=warrantyMonths;
   if(thumbPhotoDataUrl) payload.photo=thumbPhotoDataUrl;
-  if(pendingPaymentMethod) payload.paymentMethod=pendingPaymentMethod;
+  const paymentMethod=$("#paymentMethodInput")?.value.trim(); if(paymentMethod) payload.paymentMethod=paymentMethod;
   const button=$("#saveReceipt"); if(button)button.disabled=true;
   try{setSyncStatus("Firebase 저장 중...",false);await set(push(ref(db,`users/${currentUser.uid}/receipts`)),payload);resetScanForm();closeModal(modal);setSyncStatus("Firebase 동기화됨",true);}catch(error){console.error(error);setSyncStatus("Firebase 저장 실패",false);window.alert(`영수증 저장에 실패했습니다.\n${error.message||"Firebase 설정을 확인해주세요."}`);}finally{if(button)button.disabled=false;}
 }
 
 function openEdit(id){
   const r=receipts.find(item=>item.id===id); if(!r||!editModal)return; editingId=id;
-  if($("#editStoreInput"))$("#editStoreInput").value=r.store||""; if($("#editAmountInput"))$("#editAmountInput").value=Number(r.amount)||""; if($("#editCategoryInput"))$("#editCategoryInput").value=r.category||"기타"; if($("#editItemInput"))$("#editItemInput").value=r.item||""; if($("#editDateInput"))$("#editDateInput").value=r.date||localDate(); if($("#editTimeInput"))$("#editTimeInput").value=r.time||"00:00";
+  if($("#editStoreInput"))$("#editStoreInput").value=r.store||""; if($("#editAmountInput"))$("#editAmountInput").value=Number(r.amount)||""; if($("#editCategoryInput"))$("#editCategoryInput").value=r.category||"기타"; if($("#editItemInput"))$("#editItemInput").value=r.item||""; if($("#editPaymentMethodInput"))$("#editPaymentMethodInput").value=r.paymentMethod||""; if($("#editDateInput"))$("#editDateInput").value=r.date||localDate(); if($("#editTimeInput"))$("#editTimeInput").value=r.time||"00:00";
   if($("#editRefundDaysInput"))$("#editRefundDaysInput").value=r.refundDays||""; if($("#editExchangeDaysInput"))$("#editExchangeDaysInput").value=r.exchangeDays||""; if($("#editWarrantyMonthsInput"))$("#editWarrantyMonthsInput").value=r.warrantyMonths||"";
   const editPhoto=$("#editPhotoPreview");
   if(editPhoto){ if(r.photo){editPhoto.src=r.photo;editPhoto.classList.remove("hidden");}else{editPhoto.src="";editPhoto.classList.add("hidden");} }
@@ -220,7 +241,8 @@ async function updateReceipt(){
   const store=$("#editStoreInput")?.value.trim(), amount=Number($("#editAmountInput")?.value), category=$("#editCategoryInput")?.value||"기타", item=$("#editItemInput")?.value.trim()||"상품 정보 없음", date=$("#editDateInput")?.value, time=$("#editTimeInput")?.value||"00:00";
   if(!store||!amount||!date)return window.alert("가게명, 금액, 날짜를 입력해주세요.");
   const refundDays=Number($("#editRefundDaysInput")?.value), exchangeDays=Number($("#editExchangeDaysInput")?.value), warrantyMonths=Number($("#editWarrantyMonthsInput")?.value);
-  const payload={store,amount,category,item,date,time,refundDays:refundDays>0?refundDays:null,exchangeDays:exchangeDays>0?exchangeDays:null,warrantyMonths:warrantyMonths>0?warrantyMonths:null};
+  const paymentMethod=$("#editPaymentMethodInput")?.value.trim()||null;
+  const payload={store,amount,category,item,date,time,paymentMethod,refundDays:refundDays>0?refundDays:null,exchangeDays:exchangeDays>0?exchangeDays:null,warrantyMonths:warrantyMonths>0?warrantyMonths:null};
   try{setSyncStatus("Firebase 저장 중...",false);await update(ref(db,`users/${currentUser.uid}/receipts/${editingId}`),payload);closeEdit();setSyncStatus("Firebase 동기화됨",true);}catch(error){console.error(error);setSyncStatus("Firebase 연결 실패",false);window.alert(`영수증 수정에 실패했습니다.\n${error.message||"Firebase 설정을 확인해주세요."}`);}
 }
 async function deleteReceipt(id){
@@ -302,7 +324,7 @@ function parseAmount(text){
   const isNoise=(line)=>/번호|사업자|가맹점|전화|tel|대표자|일시|승인시각|카드\s*번호/i.test(line);
   const moneyValues=(line)=>{
     const values=[];
-    for(const m of line.matchAll(/([\d]{1,3}(?:,\d{3})+)\s*원?/g)) values.push(Number(m[1].replace(/,/g,"")));
+    for(const m of line.matchAll(/(\d{1,3}(?:\s*,\s*\d{3})+)\s*원?/g)) values.push(Number(m[1].replace(/[,\s]/g,"")));
     for(const m of line.matchAll(/(\d+)\s*원/g)) values.push(Number(m[1]));
     return values.filter(n=>Number.isFinite(n)&&n>0&&n<100000000);
   };
@@ -341,7 +363,37 @@ function parseStore(text){
   }
   return null;
 }
-function parsePaymentMethod(text){ if(/신용카드|체크카드|카드\s*승인|card/i.test(text))return"카드"; if(/현금|cash/i.test(text))return"현금"; return null; }
+function parsePaymentMethod(text){
+  const lines=text.split(/\n/).map(l=>l.trim());
+  const cardLine=lines.find(l=>/신용카드|체크카드/.test(l));
+  if(cardLine){
+    const brandMatch=cardLine.match(/([가-힣]{2,4})\s*(신용카드|체크카드)/);
+    const digitsMatch=cardLine.match(/(\d{4})\s*\)?\s*$/);
+    if(brandMatch) return digitsMatch?`${brandMatch[1]} ${brandMatch[2]} (${digitsMatch[1]})`:`${brandMatch[1]} ${brandMatch[2]}`;
+    return "카드";
+  }
+  if(/카드\s*결제|카드\s*승인|\bcard\b/i.test(text)) return "카드";
+  if(/현금|cash/i.test(text)) return "현금";
+  return null;
+}
+
+function parseItems(text){
+  const lines=text.split(/\n/).map(l=>l.trim()).filter(Boolean);
+  const skip=/합\s*계|총\s*액|받을\s*금액|결제\s*금액|판매\s*금액|카드\s*금액|승인\s*금액|청구\s*금액|공급가액|부가세|봉사료|사업자|가맹점|번호|전화|대표자|승인|카드|현금|거래유형|할부|영수증|receipt/i;
+  const items=[];
+  for(const line of lines){
+    if(skip.test(line)) continue;
+    if(/^[0-9\-\s:.,원₩*=~()]+$/.test(line)) continue;
+    if(/^\d{2,4}[.\-\/]\d{1,2}[.\-\/]\d{1,2}/.test(line)) continue;
+    const m=line.match(/^(.{2,25}?)\s{1,}([\d,]{2,})\s*원?$/);
+    if(m){
+      const name=m[1].trim();
+      if(name.replace(/[^가-힣a-zA-Z]/g,"").length>=2) items.push(name);
+    }
+    if(items.length>=2) break;
+  }
+  return items.length?items.join(", "):null;
+}
 
 async function runOcr(){
   if(!ocrPhotoDataUrl||!ocrStatus)return;
@@ -352,14 +404,15 @@ async function runOcr(){
     ocrStatus.textContent="영수증을 읽는 중... (최대 30초 소요)";
     const { data } = await Tesseract.recognize(ocrPhotoDataUrl,"kor+eng",{ logger: m=>{ if(m.status==="recognizing text") ocrStatus.textContent=`영수증을 읽는 중... ${Math.round((m.progress||0)*100)}%`; } });
     const text=data?.text||"";
-    const store=parseStore(text), amount=parseAmount(text), date=parseDate(text), time=parseTime(text), payment=parsePaymentMethod(text);
+    const store=parseStore(text), amount=parseAmount(text), date=parseDate(text), time=parseTime(text), payment=parsePaymentMethod(text), itemGuess=parseItems(text);
     if(store&&$("#storeInput"))$("#storeInput").value=store;
     if(amount&&$("#amountInput"))$("#amountInput").value=amount;
     if(date&&$("#dateInput"))$("#dateInput").value=date;
     if(time&&$("#timeInput"))$("#timeInput").value=time;
+    if(itemGuess&&$("#itemInput"))$("#itemInput").value=itemGuess;
+    if(payment&&$("#paymentMethodInput"))$("#paymentMethodInput").value=payment;
     if($("#categoryInput")){ $("#categoryInput").value=guessCategory(`${store||""} ${text}`); categoryManuallySet=true; }
-    pendingPaymentMethod=payment;
-    const found=[store&&"상호명",amount&&"금액",date&&"날짜"].filter(Boolean);
+    const found=[store&&"상호명",amount&&"금액",date&&"날짜",itemGuess&&"상품명",payment&&"결제수단"].filter(Boolean);
     ocrStatus.textContent=found.length?`${found.join(", ")} 인식 완료! 내용을 확인하고 저장하세요.`:"자동 인식에 실패했어요. 직접 입력해주세요.";
   }catch(error){ console.error(error); ocrStatus.textContent="인식에 실패했습니다. 직접 입력해주세요."; }
   finally{ if(recognizeBtn)recognizeBtn.disabled=false; }
@@ -408,7 +461,7 @@ $("#advancedToggle")?.addEventListener("click",()=>$("#advancedFilters")?.classL
 $("#resetFilters")?.addEventListener("click",()=>{ ["dateFromInput","dateToInput","minAmountInput","maxAmountInput"].forEach(id=>{const el=$("#"+id); if(el)el.value="";}); render(); });
 $("#exportBtn")?.addEventListener("click",exportCsv);
 ["dateFromInput","dateToInput","minAmountInput","maxAmountInput"].forEach(id=>$("#"+id)?.addEventListener("input",render));
-search?.addEventListener("input",render); filter?.addEventListener("change",render);
+search?.addEventListener("input",render); filter?.addEventListener("change",render); $("#paymentFilter")?.addEventListener("change",render);
 list?.addEventListener("click",event=>{
   const editButton=event.target.closest(".edit-receipt"),deleteButton=event.target.closest(".delete-receipt"),thumb=event.target.closest(".receipt-thumb");
   if(editButton)openEdit(editButton.dataset.id);

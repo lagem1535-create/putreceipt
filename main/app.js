@@ -447,8 +447,6 @@ onAuthStateChanged(auth,user=>{
   if($("#welcomeMessage"))$("#welcomeMessage").textContent=`${nickname}님 안녕하세요`; if($("#userEmail"))$("#userEmail").textContent=user.email||"";
   const now=new Date(); if($("#dateInput"))$("#dateInput").value=localDate(now); if($("#timeInput"))$("#timeInput").value=localTime(now); listenReceipts(user.uid);
 });
-onValue(ref(db,".info/connected"),snapshot=>setSyncStatus(snapshot.val()===true?"Firebase 연결됨":"Firebase 오프라인",snapshot.val()===true),()=>setSyncStatus("Firebase 연결 확인 실패",false));
-
 if(notifyBtn && "Notification" in window && Notification.permission==="granted"){ notifyBtn.textContent="알림 켜짐"; notifyBtn.disabled=true; }
 notifyBtn?.addEventListener("click", async ()=>{
   if(!("Notification" in window))return window.alert("이 브라우저는 알림을 지원하지 않습니다.");
@@ -462,11 +460,21 @@ $("#scanBtn")?.addEventListener("click",openAddModal);
 $("#closeModal")?.addEventListener("click",()=>closeModal(modal)); $("#closeEditModal")?.addEventListener("click",closeEdit); $("#cancelEdit")?.addEventListener("click",closeEdit); $("#saveReceipt")?.addEventListener("click",handleSave); $("#updateReceipt")?.addEventListener("click",updateReceipt);
 $("#closePhotoModal")?.addEventListener("click",()=>closeModal(photoModal));
 $("#filterToggle")?.addEventListener("click",()=>$("#filterPanel")?.classList.toggle("hidden"));
+function updateTabIndicator(){
+  const group=document.querySelector(".tab-group");
+  const active=group?.querySelector(".tab-btn.active");
+  const indicator=group?.querySelector(".tab-indicator");
+  if(!group||!active||!indicator) return;
+  indicator.style.left=active.offsetLeft+"px";
+  indicator.style.width=active.offsetWidth+"px";
+}
 document.querySelectorAll(".tab-btn").forEach(btn=>btn.addEventListener("click",()=>{
   breakdownTab=btn.dataset.tab;
   document.querySelectorAll(".tab-btn").forEach(b=>b.classList.toggle("active",b===btn));
+  updateTabIndicator();
   render();
 }));
+updateTabIndicator();
 $("#resetFilters")?.addEventListener("click",()=>{ ["dateFromInput","dateToInput","minAmountInput","maxAmountInput"].forEach(id=>{const el=$("#"+id); if(el)el.value="";}); render(); });
 $("#exportBtn")?.addEventListener("click",exportCsv);
 ["dateFromInput","dateToInput","minAmountInput","maxAmountInput"].forEach(id=>$("#"+id)?.addEventListener("input",render));

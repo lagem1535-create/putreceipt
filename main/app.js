@@ -3,7 +3,7 @@ import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/
 import { ref, push, set, onValue, remove, update } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js";
 
 const $ = (selector) => document.querySelector(selector);
-const DEFAULT_SETTINGS = { defaultCategory: "식비", defaultPaymentMethod: "", reminderDays: 3, notificationsEnabled: true };
+const DEFAULT_SETTINGS = { defaultCategory: "식비", defaultPaymentMethod: "", reminderDays: 3, notificationsEnabled: true, sortOrder: "newest", savePhoto: true, monthlyBudget: 0 };
 let receipts = [];
 let settings = { ...DEFAULT_SETTINGS };
 let currentUser = null;
@@ -89,9 +89,18 @@ function renderPaymentFilterOptions(){
   if(methods.includes(current)||current==="all") el.value=current;
 }
 
+function sortReceipts(list){
+  const sorted=[...list];
+  if(settings.sortOrder==="oldest") sorted.sort((a,b)=>receiptDateTime(a)-receiptDateTime(b));
+  else if(settings.sortOrder==="amountHigh") sorted.sort((a,b)=>Number(b.amount||0)-Number(a.amount||0));
+  else if(settings.sortOrder==="amountLow") sorted.sort((a,b)=>Number(a.amount||0)-Number(b.amount||0));
+  else sorted.sort((a,b)=>receiptDateTime(b)-receiptDateTime(a));
+  return sorted;
+}
+
 function render(){
   if(!list||!search||!filter)return;
-  const filtered = filterReceipts();
+  const filtered = sortReceipts(filterReceipts());
   list.innerHTML = filtered.length ? filtered.map(r=>{
     const deadlines = computeDeadlines(r);
     const soonest = Object.entries(deadlines).map(([type,date])=>({type,days:daysUntil(date)})).filter(d=>d.days>=0).sort((a,b)=>a.days-b.days)[0];
@@ -106,6 +115,7 @@ function render(){
   if($("#receiptCount")) $("#receiptCount").textContent=`${receipts.length}장`;
   if($("#monthCount")) $("#monthCount").textContent=`${monthReceipts.length}장`;
   renderMonthDelta(monthTotal);
+  renderBudget(monthTotal);
   renderBreakdown(monthReceipts);
   renderPaymentFilterOptions();
   renderUpcoming();
@@ -122,6 +132,17 @@ function renderMonthDelta(monthTotal){
   if(pct===0){ el.textContent="전월과 동일"; el.className="delta flat"; return; }
   el.textContent=`전월 대비 ${Math.abs(pct)}% ${pct>0?"증가":"감소"}`;
   el.className=`delta ${pct>0?"up":"down"}`;
+}
+
+function renderBudget(monthTotal){
+  const wrap=$("#budgetProgress"); if(!wrap) return;
+  const budget=Number(settings.monthlyBudget)||0;
+  if(budget<=0){ wrap.classList.add("hidden"); return; }
+  wrap.classList.remove("hidden");
+  const pct=Math.min(100,Math.round(monthTotal/budget*100));
+  const over=monthTotal>budget;
+  const fill=$("#budgetFill"); if(fill){ fill.style.width=pct+"%"; fill.classList.toggle("over",over); }
+  const text=$("#budgetText"); if(text) text.textContent=over?`예산 ${won(budget)} 초과!`:`예산의 ${pct}% 사용 (${won(budget)} 중)`;
 }
 
 let breakdownTab="category";
@@ -234,7 +255,7 @@ async function handleSave(){
   const refundDays=Number($("#refundDaysInput")?.value); if(refundDays>0) payload.refundDays=refundDays;
   const exchangeDays=Number($("#exchangeDaysInput")?.value); if(exchangeDays>0) payload.exchangeDays=exchangeDays;
   const warrantyMonths=Number($("#warrantyMonthsInput")?.value); if(warrantyMonths>0) payload.warrantyMonths=warrantyMonths;
-  if(thumbPhotoDataUrl) payload.photo=thumbPhotoDataUrl;
+  if(thumbPhotoDataUrl && settings.savePhoto) payload.photo=thumbPhotoDataUrl;
   const paymentMethod=$("#paymentMethodInput")?.value.trim(); if(paymentMethod) payload.paymentMethod=paymentMethod;
   const button=$("#saveReceipt"); if(button)button.disabled=true;
   try{setSyncStatus("Firebase 저장 중...",false);await set(push(ref(db,`users/${currentUser.uid}/receipts`)),payload);resetScanForm();closeModal(modal);setSyncStatus("Firebase 동기화됨",true);}catch(error){console.error(error);setSyncStatus("Firebase 저장 실패",false);window.alert(`영수증 저장에 실패했습니다.\n${error.message||"Firebase 설정을 확인해주세요."}`);}finally{if(button)button.disabled=false;}

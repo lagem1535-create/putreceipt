@@ -3,7 +3,7 @@ import { onAuthStateChanged, signOut, updateProfile } from "https://www.gstatic.
 import { ref, get, update } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js";
 
 const $ = (selector) => document.querySelector(selector);
-const DEFAULT_SETTINGS = { defaultCategory: "식비", defaultPaymentMethod: "", reminderDays: 3, notificationsEnabled: true };
+const DEFAULT_SETTINGS = { defaultCategory: "식비", defaultPaymentMethod: "", reminderDays: 3, notificationsEnabled: true, sortOrder: "newest", savePhoto: true, monthlyBudget: 0 };
 let currentUser = null;
 
 function showStatus(text, error = false) {
@@ -18,6 +18,9 @@ async function loadSettings(uid) {
     const settings = { ...DEFAULT_SETTINGS, ...(snapshot.val() || {}) };
     if ($("#defaultCategoryInput")) $("#defaultCategoryInput").value = settings.defaultCategory;
     if ($("#defaultPaymentInput")) $("#defaultPaymentInput").value = settings.defaultPaymentMethod;
+    if ($("#sortOrderInput")) $("#sortOrderInput").value = settings.sortOrder;
+    if ($("#savePhotoInput")) $("#savePhotoInput").checked = !!settings.savePhoto;
+    if ($("#monthlyBudgetInput")) $("#monthlyBudgetInput").value = settings.monthlyBudget > 0 ? settings.monthlyBudget : "";
     if ($("#reminderDaysInput")) $("#reminderDaysInput").value = String(settings.reminderDays);
     if ($("#notificationsEnabledInput")) $("#notificationsEnabledInput").checked = !!settings.notificationsEnabled;
   } catch (error) {
@@ -31,6 +34,9 @@ async function saveSettings() {
   const payload = {
     defaultCategory: $("#defaultCategoryInput")?.value || "식비",
     defaultPaymentMethod: $("#defaultPaymentInput")?.value.trim() || "",
+    sortOrder: $("#sortOrderInput")?.value || "newest",
+    savePhoto: !!$("#savePhotoInput")?.checked,
+    monthlyBudget: Number($("#monthlyBudgetInput")?.value) || 0,
     reminderDays: Number($("#reminderDaysInput")?.value) || 3,
     notificationsEnabled: !!$("#notificationsEnabledInput")?.checked,
   };

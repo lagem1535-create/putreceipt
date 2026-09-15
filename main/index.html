@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html lang="ko">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>영수증모아 - 홈</title><link rel="stylesheet" href="style.css?v=10"></head>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>영수증모아 - 홈</title><link rel="stylesheet" href="style.css?v=11"></head>
 <body>
-<header class="topbar"><a class="brand" href="./"><span class="brand-mark">₩</span><span>영수증모아</span></a><div class="topbar-spacer"></div><a href="../setting/" class="logout settings-link">설정</a><button id="logoutBtn" class="logout" type="button">로그아웃</button></header>
+<header class="topbar"><a class="brand" href="./"><span class="brand-mark">₩</span><span>영수증모아</span></a><div class="topbar-spacer"></div><a href="../setting/" class="icon-btn" title="설정" aria-label="설정">⚙</a><button id="logoutBtn" class="logout" type="button">로그아웃</button></header>
 <main class="container">
 <section class="hero"><div><p class="eyebrow">MY RECEIPTS</p><h1 id="welcomeMessage">안녕하세요!</h1><p id="userEmail" class="user-email"></p></div><button id="scanBtn" class="scan-btn" type="button">영수증 스캔</button></section>
-<section class="summary-grid"><article class="summary-card"><span>이번 달 지출</span><strong id="monthTotal">0원</strong><small id="monthDelta" class="delta"></small></article><article class="summary-card"><span>저장된 영수증</span><strong id="receiptCount">0장</strong></article><article class="summary-card"><span>이번 달 영수증</span><strong id="monthCount">0장</strong></article></section>
+<section class="summary-grid"><article class="summary-card"><span>이번 달 지출</span><strong id="monthTotal">0원</strong><small id="monthDelta" class="delta"></small><div id="budgetProgress" class="budget-progress hidden"><div class="budget-track"><div id="budgetFill" class="budget-fill"></div></div><small id="budgetText" class="budget-text"></small></div></article><article class="summary-card"><span>저장된 영수증</span><strong id="receiptCount">0장</strong></article><article class="summary-card"><span>이번 달 영수증</span><strong id="monthCount">0장</strong></article></section>
 <section id="upcomingSection" class="content-card hidden"><div class="section-title"><div><p class="eyebrow blue-eyebrow">DEADLINES</p><h2>다가오는 환불·교환·보증 마감</h2></div><button id="notifyBtn" class="ghost-btn" type="button">알림 켜기</button></div><div id="upcomingList" class="upcoming-list"></div></section>
 <section class="content-card"><div class="section-title"><div><p class="eyebrow blue-eyebrow">SPENDING</p><h2>이번 달 지출 분석</h2></div><div class="tab-group"><span class="tab-indicator"></span><button class="tab-btn active" data-tab="category" type="button">카테고리</button><button class="tab-btn" data-tab="payment" type="button">결제수단</button></div></div><div id="breakdownList" class="category-breakdown"></div></section>
 <section class="content-card period-links"><div class="section-title"><div><p class="eyebrow blue-eyebrow">EXPENSE SUMMARY</p><h2>기간별로 모아보기</h2></div></div><div class="period-grid"><a href="../day/" class="period-card"><span class="period-icon">D</span><div><strong>일별</strong><small>오늘의 지출 확인</small></div><span class="arrow">›</span></a><a href="../week/" class="period-card"><span class="period-icon">W</span><div><strong>주별</strong><small>이번 주 소비 흐름</small></div><span class="arrow">›</span></a><a href="../month/" class="period-card"><span class="period-icon">M</span><div><strong>달별</strong><small>이번 달 지출 분석</small></div><span class="arrow">›</span></a><a href="../year/" class="period-card"><span class="period-icon">Y</span><div><strong>연별</strong><small>올해 소비 흐름</small></div><span class="arrow">›</span></a></div></section>
@@ -56,5 +56,5 @@
 
 <div id="photoModal" class="modal hidden"><div class="lightbox"><button id="closePhotoModal" class="close" type="button" aria-label="닫기">×</button><img id="lightboxImage" alt="영수증 사진 확대"></div></div>
 
-<script type="module" src="app.js?v=10"></script>
+<script type="module" src="app.js?v=11"></script>
 </body></html>

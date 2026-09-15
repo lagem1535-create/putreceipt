@@ -3,10 +3,13 @@ import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/
 import { ref, push, set, onValue, remove, update } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js";
 
 const $ = (selector) => document.querySelector(selector);
+const DEFAULT_SETTINGS = { defaultCategory: "식비", defaultPaymentMethod: "", reminderDays: 3, notificationsEnabled: true };
 let receipts = [];
+let settings = { ...DEFAULT_SETTINGS };
 let currentUser = null;
 let editingId = null;
 let stopReceipts = null;
+let stopSettings = null;
 let categoryManuallySet = false;
 let ocrPhotoDataUrl = null;
 let thumbPhotoDataUrl = null;
@@ -92,7 +95,7 @@ function render(){
   list.innerHTML = filtered.length ? filtered.map(r=>{
     const deadlines = computeDeadlines(r);
     const soonest = Object.entries(deadlines).map(([type,date])=>({type,days:daysUntil(date)})).filter(d=>d.days>=0).sort((a,b)=>a.days-b.days)[0];
-    const badge = soonest ? `<span class="deadline-badge ${soonest.days<=3?"soon":"later"}">${DEADLINE_LABEL[soonest.type]} D-${soonest.days}</span>` : "";
+    const badge = soonest ? `<span class="deadline-badge ${soonest.days<=settings.reminderDays?"soon":"later"}">${DEADLINE_LABEL[soonest.type]} D-${soonest.days}</span>` : "";
     const thumb = r.photo ? `<img class="receipt-thumb" src="${escapeHtml(r.photo)}" alt="영수증 사진">` : `<div class="receipt-icon">₩</div>`;
     const paymentTag = r.paymentMethod ? ` · ${escapeHtml(r.paymentMethod)}` : "";
     return `<article class="receipt-row">${thumb}<div class="receipt-info"><strong>${escapeHtml(r.store)}</strong><span>${escapeHtml(r.item)} · ${escapeHtml(r.category)}${paymentTag}</span>${badge}</div><div class="receipt-date">${escapeHtml(r.date)} ${escapeHtml(r.time||"")}</div><strong class="receipt-amount">${won(r.amount)}</strong><div class="receipt-actions"><button class="edit-receipt" data-id="${escapeHtml(r.id)}" type="button">수정</button><button class="delete-receipt" data-id="${escapeHtml(r.id)}" type="button">삭제</button></div></article>`;
@@ -156,13 +159,14 @@ function renderUpcoming(){
   }
   section?.classList.remove("hidden");
   upcomingEl.innerHTML = items.slice(0,8).map(({r,type,days})=>{
-    const badge = days<=3 ? "soon" : "later";
+    const badge = days<=settings.reminderDays ? "soon" : "later";
     const dday = days===0 ? "D-DAY" : `D-${days}`;
     return `<div class="upcoming-item"><div class="receipt-icon">₩</div><div><strong>${escapeHtml(r.store)} · ${DEADLINE_LABEL[type]} 마감</strong><span>${escapeHtml(r.date)} 구매 · ${dday}</span></div><span class="upcoming-badge ${badge}">${dday}</span></div>`;
   }).join("");
 }
 
 function checkDeadlineNotifications(){
+  if (!settings.notificationsEnabled) return;
   if (!("Notification" in window) || Notification.permission !== "granted") return;
   const storageKey = `receiptmoa_notified_${localDate()}`;
   let notified = [];
@@ -173,7 +177,7 @@ function checkDeadlineNotifications(){
     Object.entries(deadlines).forEach(([type,date])=>{
       const days = daysUntil(date);
       const flagId = `${r.id}_${type}`;
-      if (days >= 0 && days <= 3 && !notified.includes(flagId)) {
+      if (days >= 0 && days <= settings.reminderDays && !notified.includes(flagId)) {
         try { new Notification("영수증모아 마감 알림", { body: `${r.store} · ${DEADLINE_LABEL[type]} 마감 D-${days===0?"DAY":days}` }); } catch {}
         notified.push(flagId); changed = true;
       }
@@ -192,12 +196,21 @@ function listenReceipts(uid){
   },error=>{console.error(error);setSyncStatus("Firebase 연결 실패",false);if(list)list.innerHTML=`<div class="empty">Firebase에서 영수증을 불러오지 못했습니다.<br><span>${escapeHtml(error.message)}</span></div>`;});
 }
 
+function listenSettings(uid){
+  if(stopSettings)stopSettings();
+  stopSettings=onValue(ref(db,`users/${uid}/settings`),snapshot=>{
+    settings={...DEFAULT_SETTINGS,...(snapshot.val()||{})};
+    render(); checkDeadlineNotifications();
+  },error=>console.error(error));
+}
+
 function closeModal(target){ if(target)target.classList.add("hidden"); }
 function closeEdit(){ editingId=null; closeModal(editModal); }
 
 function resetScanForm(){
-  ["storeInput","amountInput","itemInput","paymentMethodInput","refundDaysInput","exchangeDaysInput","warrantyMonthsInput"].forEach(id=>{const el=$("#"+id); if(el) el.value="";});
-  if($("#categoryInput")) $("#categoryInput").value="식비";
+  ["storeInput","amountInput","itemInput","refundDaysInput","exchangeDaysInput","warrantyMonthsInput"].forEach(id=>{const el=$("#"+id); if(el) el.value="";});
+  if($("#categoryInput")) $("#categoryInput").value=settings.defaultCategory||"식비";
+  if($("#paymentMethodInput")) $("#paymentMethodInput").value=settings.defaultPaymentMethod||"";
   if(photoInput) photoInput.value="";
   ocrPhotoDataUrl=null; thumbPhotoDataUrl=null; categoryManuallySet=false;
   if(photoPreview){ photoPreview.src=""; photoPreview.classList.add("hidden"); }
@@ -445,7 +458,7 @@ onAuthStateChanged(auth,user=>{
   if(!user){window.location.replace("../login/");return;}
   currentUser=user; const nickname=user.displayName?.trim()||user.email?.split("@")[0]||"사용자";
   if($("#welcomeMessage"))$("#welcomeMessage").textContent=`${nickname}님 안녕하세요`; if($("#userEmail"))$("#userEmail").textContent=user.email||"";
-  const now=new Date(); if($("#dateInput"))$("#dateInput").value=localDate(now); if($("#timeInput"))$("#timeInput").value=localTime(now); listenReceipts(user.uid);
+  const now=new Date(); if($("#dateInput"))$("#dateInput").value=localDate(now); if($("#timeInput"))$("#timeInput").value=localTime(now); listenReceipts(user.uid); listenSettings(user.uid);
 });
 if(notifyBtn && "Notification" in window && Notification.permission==="granted"){ notifyBtn.textContent="알림 켜짐"; notifyBtn.disabled=true; }
 notifyBtn?.addEventListener("click", async ()=>{

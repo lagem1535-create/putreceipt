@@ -103,8 +103,7 @@ function render(){
   if($("#receiptCount")) $("#receiptCount").textContent=`${receipts.length}장`;
   if($("#monthCount")) $("#monthCount").textContent=`${monthReceipts.length}장`;
   renderMonthDelta(monthTotal);
-  renderCategoryBreakdown(monthReceipts);
-  renderPaymentBreakdown(monthReceipts);
+  renderBreakdown(monthReceipts);
   renderPaymentFilterOptions();
   renderUpcoming();
 }
@@ -122,20 +121,18 @@ function renderMonthDelta(monthTotal){
   el.className=`delta ${pct>0?"up":"down"}`;
 }
 
-function renderCategoryBreakdown(monthReceipts){
-  const el=$("#categoryBreakdown"); if(!el) return;
-  const cats=["식비","카페","교통","생필품","쇼핑","의료","기타"];
-  const totals=cats.map(c=>({ c, v: monthReceipts.filter(r=>r.category===c).reduce((s,r)=>s+Number(r.amount||0),0) })).filter(x=>x.v>0).sort((a,b)=>b.v-a.v);
-  if(!totals.length){ el.innerHTML=`<div class="category-empty">이번 달 지출 내역이 아직 없습니다.</div>`; return; }
-  const max=Math.max(...totals.map(x=>x.v));
-  el.innerHTML=totals.map(x=>`<div class="cat-row"><span class="cat-name">${escapeHtml(x.c)}</span><div class="cat-track"><div class="cat-fill" style="width:${Math.max(x.v/max*100,4)}%"></div></div><span class="cat-amount">${won(x.v)}</span></div>`).join("");
-}
-
-function renderPaymentBreakdown(monthReceipts){
-  const el=$("#paymentBreakdown"); if(!el) return;
-  const groups={};
-  monthReceipts.forEach(r=>{ const key=r.paymentMethod||"미입력"; groups[key]=(groups[key]||0)+Number(r.amount||0); });
-  const totals=Object.entries(groups).map(([c,v])=>({c,v})).filter(x=>x.v>0).sort((a,b)=>b.v-a.v).slice(0,6);
+let breakdownTab="category";
+function renderBreakdown(monthReceipts){
+  const el=$("#breakdownList"); if(!el) return;
+  let totals;
+  if(breakdownTab==="payment"){
+    const groups={};
+    monthReceipts.forEach(r=>{ const key=r.paymentMethod||"미입력"; groups[key]=(groups[key]||0)+Number(r.amount||0); });
+    totals=Object.entries(groups).map(([c,v])=>({c,v})).filter(x=>x.v>0).sort((a,b)=>b.v-a.v).slice(0,6);
+  }else{
+    const cats=["식비","카페","교통","생필품","쇼핑","의료","기타"];
+    totals=cats.map(c=>({ c, v: monthReceipts.filter(r=>r.category===c).reduce((s,r)=>s+Number(r.amount||0),0) })).filter(x=>x.v>0).sort((a,b)=>b.v-a.v);
+  }
   if(!totals.length){ el.innerHTML=`<div class="category-empty">이번 달 지출 내역이 아직 없습니다.</div>`; return; }
   const max=Math.max(...totals.map(x=>x.v));
   el.innerHTML=totals.map(x=>`<div class="cat-row"><span class="cat-name">${escapeHtml(x.c)}</span><div class="cat-track"><div class="cat-fill" style="width:${Math.max(x.v/max*100,4)}%"></div></div><span class="cat-amount">${won(x.v)}</span></div>`).join("");
@@ -152,10 +149,12 @@ function renderUpcoming(){
     });
   });
   items.sort((a,b)=>a.days-b.days);
+  const section=$("#upcomingSection");
   if (!items.length) {
-    upcomingEl.innerHTML = `<div class="upcoming-empty">환불·교환·보증기간을 설정한 영수증이 없습니다.<br><span>영수증 저장 시 기간을 입력하면 마감일이 다가올 때 알려드려요.</span></div>`;
+    section?.classList.add("hidden");
     return;
   }
+  section?.classList.remove("hidden");
   upcomingEl.innerHTML = items.slice(0,8).map(({r,type,days})=>{
     const badge = days<=3 ? "soon" : "later";
     const dday = days===0 ? "D-DAY" : `D-${days}`;
@@ -355,25 +354,30 @@ function parseDate(text){
 function parseTime(text){ const m=text.match(/([01]?\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?/); return m?`${String(m[1]).padStart(2,"0")}:${m[2]}`:null; }
 function parseStore(text){
   const lines=text.split(/\n/).map(l=>l.trim()).filter(Boolean);
+  const noise=/사업자|등록번호|대표자|주소|영수증|지출증빙|매출전표|거래명세|카드전표|간이영수증|receipt|tel|전화|카드|승인|매장코드/i;
   for(const line of lines){
     if(/^[0-9\-\s:.,원₩*=~()]+$/.test(line)) continue;
-    if(/사업자|등록번호|대표자|주소|영수증|receipt|tel|전화|카드|승인|매장코드/i.test(line)) continue;
-    if(line.replace(/[^가-힣a-zA-Z]/g,"").length<2) continue;
-    return line.replace(/^[\s*\-=~"'.]+|[\s*\-=~"'.]+$/g,"").slice(0,30);
+    if(noise.test(line)) continue;
+    const candidate=line.split(/\s{2,}/)[0].trim().replace(/^[\s*\-=~"'.]+|[\s*\-=~"'.]+$/g,"");
+    if(candidate.replace(/[^가-힣a-zA-Z]/g,"").length<2) continue;
+    return candidate.slice(0,30);
   }
   return null;
 }
 function parsePaymentMethod(text){
   const lines=text.split(/\n/).map(l=>l.trim());
-  const cardLine=lines.find(l=>/신용카드|체크카드/.test(l));
-  if(cardLine){
-    const brandMatch=cardLine.match(/([가-힣]{2,4})\s*(신용카드|체크카드)/);
-    const digitsMatch=cardLine.match(/(\d{4})\s*\)?\s*$/);
-    if(brandMatch) return digitsMatch?`${brandMatch[1]} ${brandMatch[2]} (${digitsMatch[1]})`:`${brandMatch[1]} ${brandMatch[2]}`;
-    return "카드";
+  for(const line of lines){
+    if(!/카드/.test(line)) continue;
+    if(/카드\s*(번호|종류|잔액|사)/.test(line)) continue;
+    const brandMatch=line.match(/([가-힣]{2,6}\s*(?:신용카드|체크카드|카드))/);
+    if(brandMatch){
+      const brand=brandMatch[1].replace(/\s+/g," ").trim();
+      const digitsMatch=line.match(/(\d{4})\s*\)?\s*\**\s*$/);
+      return digitsMatch?`${brand} (${digitsMatch[1]})`:brand;
+    }
   }
-  if(/카드\s*결제|카드\s*승인|\bcard\b/i.test(text)) return "카드";
   if(/현금|cash/i.test(text)) return "현금";
+  if(/카드/.test(text)) return "카드";
   return null;
 }
 
@@ -457,7 +461,12 @@ $("#logoutBtn")?.addEventListener("click",async()=>{try{await authPersistenceRea
 $("#scanBtn")?.addEventListener("click",openAddModal);
 $("#closeModal")?.addEventListener("click",()=>closeModal(modal)); $("#closeEditModal")?.addEventListener("click",closeEdit); $("#cancelEdit")?.addEventListener("click",closeEdit); $("#saveReceipt")?.addEventListener("click",handleSave); $("#updateReceipt")?.addEventListener("click",updateReceipt);
 $("#closePhotoModal")?.addEventListener("click",()=>closeModal(photoModal));
-$("#advancedToggle")?.addEventListener("click",()=>$("#advancedFilters")?.classList.toggle("hidden"));
+$("#filterToggle")?.addEventListener("click",()=>$("#filterPanel")?.classList.toggle("hidden"));
+document.querySelectorAll(".tab-btn").forEach(btn=>btn.addEventListener("click",()=>{
+  breakdownTab=btn.dataset.tab;
+  document.querySelectorAll(".tab-btn").forEach(b=>b.classList.toggle("active",b===btn));
+  render();
+}));
 $("#resetFilters")?.addEventListener("click",()=>{ ["dateFromInput","dateToInput","minAmountInput","maxAmountInput"].forEach(id=>{const el=$("#"+id); if(el)el.value="";}); render(); });
 $("#exportBtn")?.addEventListener("click",exportCsv);
 ["dateFromInput","dateToInput","minAmountInput","maxAmountInput"].forEach(id=>$("#"+id)?.addEventListener("input",render));

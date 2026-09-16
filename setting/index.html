@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html lang="ko">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>영수증모아 - 설정</title><link rel="stylesheet" href="../main/style.css?v=13"><link rel="stylesheet" href="style.css?v=3"></head>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>영수증모아 - 설정</title><link rel="stylesheet" href="../main/style.css?v=14"><link rel="stylesheet" href="style.css?v=4"></head>
 <body>
 <header class="topbar"><a class="brand" href="../main/"><span class="brand-mark">₩</span><span>영수증모아</span></a><div class="topbar-spacer"></div><button id="logoutBtn" class="logout" type="button">로그아웃</button></header>
 <main class="container settings-container">
 <section class="content-card"><div class="section-title"><div><p class="eyebrow blue-eyebrow">SETTINGS</p><h2>설정</h2></div></div><p class="settings-hint">바꾼 내용은 아래 저장 버튼을 눌러야 반영됩니다.</p></section>
 
 <section class="content-card">
-<h3 class="settings-h3">계정</h3>
+<h3 class="settings-h3"><span class="settings-icon icon-acc">@</span>계정</h3>
 <label for="emailDisplay">이메일</label>
 <input id="emailDisplay" type="text" disabled>
 <label for="nicknameInput">닉네임</label>
@@ -15,7 +15,7 @@
 </section>
 
 <section class="content-card">
-<h3 class="settings-h3">영수증 기본값</h3>
+<h3 class="settings-h3"><span class="settings-icon icon-receipt">R</span>영수증 기본값</h3>
 <p class="settings-desc">영수증을 추가할 때 아래 값으로 미리 채워드려요.</p>
 <label for="defaultCategoryInput">기본 카테고리</label>
 <select id="defaultCategoryInput"><option>식비</option><option>카페</option><option>교통</option><option>생필품</option><option>쇼핑</option><option>의료</option><option>기타</option></select>
@@ -27,28 +27,30 @@
 </section>
 
 <section class="content-card">
-<h3 class="settings-h3">월 예산</h3>
+<h3 class="settings-h3"><span class="settings-icon icon-budget">₩</span>월 예산</h3>
 <p class="settings-desc">한 달 지출 목표를 정하면 홈 화면에서 사용률을 보여드려요.</p>
 <label for="monthlyBudgetInput">월 예산 (원)</label>
 <input id="monthlyBudgetInput" type="number" inputmode="numeric" placeholder="예: 500000 (비워두면 표시 안 함)">
 </section>
 
 <section class="content-card">
-<h3 class="settings-h3">홈 화면 요약 카드</h3>
+<h3 class="settings-h3"><span class="settings-icon icon-card">▦</span>홈 화면 요약 카드</h3>
 <label class="switch-row"><span>배너처럼 자동으로 넘기기</span><input id="cardBannerModeInput" type="checkbox"></label>
 <p class="settings-desc">화살표로 카드가 보이는 순서를 바꿀 수 있어요.</p>
 <ul id="cardOrderList" class="reorder-list"></ul>
 </section>
 
 <section class="content-card">
-<h3 class="settings-h3">환불·교환·보증 마감 알림</h3>
+<h3 class="settings-h3"><span class="settings-icon icon-alarm">!</span>환불·교환·보증 마감 알림</h3>
 <label class="switch-row"><span>마감 알림 사용</span><input id="notificationsEnabledInput" type="checkbox"></label>
 <label for="reminderDaysInput">마감 며칠 전부터 알려드릴까요?</label>
 <select id="reminderDaysInput"><option value="1">1일 전</option><option value="3">3일 전</option><option value="7">7일 전</option><option value="14">14일 전</option></select>
 </section>
 
+<div class="settings-footer">
 <button id="saveSettingsBtn" class="settings-save" type="button">설정 저장</button>
 <p id="saveStatus" class="message"></p>
+</div>
 </main>
 <script type="module" src="app.js?v=3"></script>
 </body></html>

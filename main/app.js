@@ -3,7 +3,8 @@ import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/
 import { ref, push, set, onValue, remove, update } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js";
 
 const $ = (selector) => document.querySelector(selector);
-const DEFAULT_SETTINGS = { defaultCategory: "식비", defaultPaymentMethod: "", reminderDays: 3, notificationsEnabled: true, sortOrder: "newest", savePhoto: true, monthlyBudget: 0 };
+const DEFAULT_SETTINGS = { defaultCategory: "식비", defaultPaymentMethod: "", reminderDays: 3, notificationsEnabled: true, sortOrder: "newest", savePhoto: true, monthlyBudget: 0, cardBannerMode: false, cardOrder: ["monthTotal","receiptCount","monthCount"] };
+let bannerTimer=null;
 let receipts = [];
 let settings = { ...DEFAULT_SETTINGS };
 let currentUser = null;
@@ -221,8 +222,42 @@ function listenSettings(uid){
   if(stopSettings)stopSettings();
   stopSettings=onValue(ref(db,`users/${uid}/settings`),snapshot=>{
     settings={...DEFAULT_SETTINGS,...(snapshot.val()||{})};
+    applyCardOrder(); applyBannerMode();
     render(); checkDeadlineNotifications();
   },error=>console.error(error));
+}
+
+function applyCardOrder(){
+  const grid=$("#summaryGrid"); if(!grid) return;
+  const known=DEFAULT_SETTINGS.cardOrder;
+  const order=Array.isArray(settings.cardOrder)&&settings.cardOrder.length===known.length&&known.every(k=>settings.cardOrder.includes(k))?settings.cardOrder:known;
+  order.forEach(key=>{ const card=grid.querySelector(`[data-card="${key}"]`); if(card) grid.appendChild(card); });
+}
+
+function applyBannerMode(){
+  const grid=$("#summaryGrid"); const dots=$("#bannerDots"); if(!grid) return;
+  if(bannerTimer){ clearInterval(bannerTimer); bannerTimer=null; }
+  const cards=[...grid.querySelectorAll(".summary-card")];
+  if(!settings.cardBannerMode){
+    grid.classList.remove("banner-mode");
+    cards.forEach(c=>c.classList.remove("active"));
+    dots?.classList.add("hidden");
+    return;
+  }
+  grid.classList.add("banner-mode");
+  let index=0;
+  cards.forEach((c,i)=>c.classList.toggle("active",i===0));
+  if(dots){
+    dots.classList.remove("hidden");
+    dots.innerHTML=cards.map((_,i)=>`<span class="${i===0?"active":""}"></span>`).join("");
+  }
+  bannerTimer=setInterval(()=>{
+    cards[index].classList.remove("active");
+    dots?.children[index]?.classList.remove("active");
+    index=(index+1)%cards.length;
+    cards[index].classList.add("active");
+    dots?.children[index]?.classList.add("active");
+  },3500);
 }
 
 function closeModal(target){ if(target)target.classList.add("hidden"); }

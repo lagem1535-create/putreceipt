@@ -2,7 +2,7 @@
 <html lang="ko">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>영수증모아 - 홈</title><link rel="stylesheet" href="style.css?v=16"></head>
 <body>
-<header class="topbar"><a class="brand" href="./"><span class="brand-mark">₩</span><span>영수증모아</span></a><div class="topbar-spacer"></div><a href="../setting/" class="logout settings-link">설정</a><button id="logoutBtn" class="logout" type="button">로그아웃</button></header>
+<header class="topbar"><a class="brand" href="./"><span class="brand-mark">₩</span><span>영수증모아</span></a><div class="topbar-spacer"></div><a href="../report/" class="logout settings-link">리포트</a><a href="../setting/" class="logout settings-link">설정</a><button id="logoutBtn" class="logout" type="button">로그아웃</button></header>
 <main class="container">
 <section class="hero"><div><p class="eyebrow">MY RECEIPTS</p><h1 id="welcomeMessage">안녕하세요!</h1><p id="userEmail" class="user-email"></p></div><button id="scanBtn" class="scan-btn" type="button">영수증 스캔</button></section>
 <section id="summaryGrid" class="summary-grid"><article class="summary-card" data-card="monthTotal"><span>이번 달 지출</span><strong id="monthTotal">0원</strong><small id="monthDelta" class="delta"></small><div id="budgetProgress" class="budget-progress hidden"><div class="budget-track"><div id="budgetFill" class="budget-fill"></div></div><small id="budgetText" class="budget-text"></small></div></article><article class="summary-card" data-card="receiptCount"><span>저장된 영수증</span><strong id="receiptCount">0장</strong></article><article class="summary-card" data-card="monthCount"><span>이번 달 영수증</span><strong id="monthCount">0장</strong></article></section>
@@ -63,6 +63,7 @@
   <button id="mobileScanBtn" class="mobile-scan-fab" type="button" aria-label="영수증 스캔">
     <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"></path><circle cx="12" cy="14" r="3.5"></circle></svg>
   </button>
+  <a href="../report/" class="mobile-nav-item"><span class="mobile-nav-icon">R</span><span>리포트</span></a>
   <a href="../setting/" class="mobile-nav-item"><span class="mobile-nav-icon">⚙</span><span>설정</span></a>
   <button id="mobileLogoutBtn" class="mobile-nav-item" type="button"><span class="mobile-nav-icon">⏻</span><span>로그아웃</span></button>
 </nav>

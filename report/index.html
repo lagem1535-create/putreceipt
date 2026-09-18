@@ -1,11 +1,19 @@
 <!DOCTYPE html>
 <html lang="ko">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>영수증모아 - 지출 보고서</title><link rel="stylesheet" href="../main/style.css?v=16"><link rel="stylesheet" href="style.css?v=1"></head>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>영수증모아 - 지출 보고서</title><link rel="stylesheet" href="../main/style.css?v=16"><link rel="stylesheet" href="style.css?v=2"></head>
 <body>
 <header class="topbar"><a class="brand" href="../main/"><span class="brand-mark">₩</span><span>영수증모아</span></a><div class="topbar-spacer"></div><a href="../setting/" class="logout settings-link">설정</a><button id="logoutBtn" class="logout" type="button">로그아웃</button></header>
 <main class="container report-container">
 
-<section class="content-card"><div class="section-title"><div><p class="eyebrow blue-eyebrow">REPORT</p><h2>지출 보고서</h2></div></div><p class="settings-hint">기간을 골라 경비 정산이나 제출용 보고서를 만들 수 있어요.</p></section>
+<section class="content-card report-doc-header">
+<div class="section-title"><div><p class="eyebrow blue-eyebrow">REPORT</p><h2>지출 보고서</h2></div></div>
+<p class="settings-hint">기간을 골라 경비 정산이나 제출용 보고서를 만들 수 있어요.</p>
+<dl class="report-meta">
+  <div class="report-meta-item"><dt>작성일</dt><dd id="reportIssueDate">-</dd></div>
+  <div class="report-meta-item"><dt>대상 기간</dt><dd id="reportPeriodLabel">-</dd></div>
+  <div class="report-meta-item"><dt>작성자</dt><dd id="reportAuthor">-</dd></div>
+</dl>
+</section>
 
 <section class="content-card">
 <div class="report-presets">
@@ -47,6 +55,11 @@
 </div>
 </section>
 
+<footer class="report-footer">
+  <span class="brand-mark report-footer-mark">₩</span>
+  <div class="report-footer-text"><strong>영수증모아</strong><span>본 문서는 영수증모아에서 자동 생성된 지출 보고서입니다.</span></div>
+</footer>
+
 </main>
 
 <nav class="mobile-nav">
@@ -55,5 +68,5 @@
   <a href="../setting/" class="mobile-nav-item"><span class="mobile-nav-icon">⚙</span><span>설정</span></a>
   <button id="mobileLogoutBtn" class="mobile-nav-item" type="button"><span class="mobile-nav-icon">⏻</span><span>로그아웃</span></button>
 </nav>
-<script type="module" src="app.js?v=1"></script>
+<script type="module" src="app.js?v=2"></script>
 </body></html>

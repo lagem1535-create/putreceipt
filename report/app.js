@@ -41,7 +41,20 @@ function filteredReceipts() {
   }).sort((a, b) => receiptDateTime(a) - receiptDateTime(b));
 }
 
+function formatIssueDate(date = new Date()) { return `${date.getFullYear()}년 ${date.getMonth()+1}월 ${date.getDate()}일`; }
+
+function updateDocMeta() {
+  if ($("#reportIssueDate")) $("#reportIssueDate").textContent = formatIssueDate();
+  const { from, to } = currentRange();
+  let periodLabel = "전체 기간";
+  if (from && to) periodLabel = `${from} ~ ${to}`;
+  else if (from) periodLabel = `${from} 이후`;
+  else if (to) periodLabel = `${to} 까지`;
+  if ($("#reportPeriodLabel")) $("#reportPeriodLabel").textContent = periodLabel;
+}
+
 function render() {
+  updateDocMeta();
   const list = filteredReceipts();
   const total = list.reduce((s, r) => s + Number(r.amount || 0), 0);
   if ($("#reportTotal")) $("#reportTotal").textContent = won(total);
@@ -104,6 +117,7 @@ $("#mobileLogoutBtn")?.addEventListener("click", handleLogout);
 let stopReceipts = null;
 onAuthStateChanged(auth, (user) => {
   if (!user) { window.location.replace("../login/"); return; }
+  if ($("#reportAuthor")) $("#reportAuthor").textContent = user.displayName || user.email || "-";
   if (stopReceipts) stopReceipts();
   stopReceipts = onValue(ref(db, `users/${user.uid}/receipts`), (snapshot) => {
     const data = snapshot.val() || {};

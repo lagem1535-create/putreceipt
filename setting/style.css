@@ -32,4 +32,4 @@
 .reorder-btn{width:30px;height:30px;border:1px solid var(--line);border-radius:8px;background:#fff;color:#6d6f80;cursor:pointer;font-size:12px;line-height:1}
 .reorder-btn:disabled{opacity:.35;cursor:not-allowed}
 .reorder-btn:hover:not(:disabled){background:var(--blue-soft);color:var(--blue)}
-@media(max-width:700px){.settings-h3{font-size:14px}}
+@media(max-width:700px){.settings-h3{font-size:14px}.topbar .logout{display:inline-block}}

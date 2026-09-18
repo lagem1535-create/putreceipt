@@ -524,8 +524,11 @@ notifyBtn?.addEventListener("click", async ()=>{
   else window.alert("알림 권한이 거부되었습니다.");
 });
 
-$("#logoutBtn")?.addEventListener("click",async()=>{try{await authPersistenceReady;await signOut(auth);window.location.replace("../login/");}catch(error){window.alert(`로그아웃에 실패했습니다.\n${error.message||"잠시 후 다시 시도해주세요."}`);}});
+async function handleLogout(){try{await authPersistenceReady;await signOut(auth);window.location.replace("../login/");}catch(error){window.alert(`로그아웃에 실패했습니다.\n${error.message||"잠시 후 다시 시도해주세요."}`);}}
+$("#logoutBtn")?.addEventListener("click",handleLogout);
+$("#mobileLogoutBtn")?.addEventListener("click",handleLogout);
 $("#scanBtn")?.addEventListener("click",openAddModal);
+$("#mobileScanBtn")?.addEventListener("click",openAddModal);
 $("#closeModal")?.addEventListener("click",()=>closeModal(modal)); $("#closeEditModal")?.addEventListener("click",closeEdit); $("#cancelEdit")?.addEventListener("click",closeEdit); $("#saveReceipt")?.addEventListener("click",handleSave); $("#updateReceipt")?.addEventListener("click",updateReceipt);
 $("#closePhotoModal")?.addEventListener("click",()=>closeModal(photoModal));
 $("#filterToggle")?.addEventListener("click",()=>$("#filterPanel")?.classList.toggle("hidden"));

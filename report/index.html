@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="ko">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>영수증모아 - 지출 보고서</title><link rel="stylesheet" href="../main/style.css?v=16"><link rel="stylesheet" href="style.css?v=2"></head>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>영수증모아 - 지출 보고서</title><link rel="stylesheet" href="../main/style.css?v=17"><link rel="stylesheet" href="style.css?v=3"></head>
 <body>
 <header class="topbar"><a class="brand" href="../main/"><span class="brand-mark">₩</span><span>영수증모아</span></a><div class="topbar-spacer"></div><a href="../setting/" class="logout settings-link">설정</a><button id="logoutBtn" class="logout" type="button">로그아웃</button></header>
 <main class="container report-container">
@@ -26,6 +26,16 @@
   <label>시작일<input id="rangeFrom" type="date"></label>
   <label>종료일<input id="rangeTo" type="date"></label>
 </div>
+<div class="report-settlement-row">
+  <label class="filter-check"><input id="settlementOnlyInput" type="checkbox"><span>정산 대상만 보기</span></label>
+  <span id="reportSettlementSummary" class="report-settlement-summary"></span>
+</div>
+</section>
+
+<section class="content-card">
+<div class="section-title"><h2 class="report-h2">AI 지출 요약</h2><button id="aiSummaryBtn" class="ghost-btn" type="button">AI 요약 생성</button></div>
+<p id="reportSummaryText" class="report-summary-text">요약을 준비하고 있습니다...</p>
+<p id="aiSummaryStatus" class="ai-search-status hidden"></p>
 </section>
 
 <section class="content-card report-summary">
@@ -48,9 +58,9 @@
 <div class="section-title"><h2 class="report-h2">영수증 내역</h2><div class="report-actions"><button id="printReportBtn" class="ghost-btn" type="button">인쇄 / PDF 저장</button><button id="exportReportCsvBtn" class="ghost-btn" type="button">CSV 내보내기</button></div></div>
 <div class="report-table-wrap">
 <table class="report-table">
-<thead><tr><th>날짜</th><th>가게명</th><th>카테고리</th><th>결제수단</th><th class="num">금액</th></tr></thead>
+<thead><tr><th>날짜</th><th>가게명</th><th>카테고리</th><th>문서</th><th>결제수단</th><th class="num">금액</th></tr></thead>
 <tbody id="reportTableBody"></tbody>
-<tfoot><tr><td colspan="4">합계</td><td class="num" id="reportTableTotal">0원</td></tr></tfoot>
+<tfoot><tr><td colspan="5">합계</td><td class="num" id="reportTableTotal">0원</td></tr></tfoot>
 </table>
 </div>
 </section>
@@ -68,5 +78,5 @@
   <a href="../setting/" class="mobile-nav-item"><span class="mobile-nav-icon">⚙</span><span>설정</span></a>
   <button id="mobileLogoutBtn" class="mobile-nav-item" type="button"><span class="mobile-nav-icon">⏻</span><span>로그아웃</span></button>
 </nav>
-<script type="module" src="app.js?v=2"></script>
+<script type="module" src="app.js?v=3"></script>
 </body></html>

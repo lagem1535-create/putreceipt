@@ -1,6 +1,8 @@
 import { auth, db, authPersistenceReady } from "../login/firebase-config.js?v=4";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js";
 import { ref, push, set, onValue, remove, update } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js";
+import { parseNaturalQuery } from "../ai/nlquery.js";
+import { embedTexts, cosineSim } from "../ai/engine.js";
 
 const $ = (selector) => document.querySelector(selector);
 const DEFAULT_SETTINGS = { defaultCategory: "식비", defaultPaymentMethod: "", reminderDays: 3, notificationsEnabled: true, sortOrder: "newest", savePhoto: true, monthlyBudget: 0, cardBannerMode: false, cardOrder: ["monthTotal","receiptCount","monthCount"] };
@@ -15,6 +17,35 @@ let categoryManuallySet = false;
 let ocrPhotoDataUrl = null;
 let thumbPhotoDataUrl = null;
 let tesseractLoading = null;
+let aiSearchMode = false;
+let aiRankedIds = null;
+let aiSearchDebounce = null;
+
+const DOC_TYPE_KOREAN = { receipt: "영수증", medicine: "약 봉투", warranty: "보증서" };
+const DOC_TYPE_LABELS = {
+  receipt: { storeLabel: "가게명", itemLabel: "상품명 (선택)", deadlineTitle: "환불·교환·보증기간 (선택)", refundLabel: "환불(일)", warrantyLabel: "보증(개월)", showRefund: true, showExchange: true, showWarranty: true },
+  medicine: { storeLabel: "약국명 / 병원명", itemLabel: "약 이름", deadlineTitle: "복용 기간 (선택)", refundLabel: "복용기간(일)", warrantyLabel: "보증(개월)", showRefund: true, showExchange: false, showWarranty: false },
+  warranty: { storeLabel: "구매처", itemLabel: "제품명", deadlineTitle: "보증기간 (선택)", refundLabel: "환불(일)", warrantyLabel: "보증(개월)", showRefund: false, showExchange: false, showWarranty: true },
+};
+const ADD_DOC_IDS = { store: "storeInput", item: "itemInput", deadlineTitle: "deadlineTitle", refund: "refundDaysInput", exchange: "exchangeDaysInput", warranty: "warrantyMonthsInput" };
+const EDIT_DOC_IDS = { store: "editStoreInput", item: "editItemInput", deadlineTitle: "editDeadlineTitle", refund: "editRefundDaysInput", exchange: "editExchangeDaysInput", warranty: "editWarrantyMonthsInput" };
+
+function applyDocTypeUI(ids, docType) {
+  const cfg = DOC_TYPE_LABELS[docType] || DOC_TYPE_LABELS.receipt;
+  const set2 = (id, fn) => { const el = $("#" + id); if (el) fn(el); };
+  set2(ids.store, el => el.placeholder = cfg.storeLabel);
+  set2(ids.item, el => el.placeholder = cfg.itemLabel);
+  set2(ids.deadlineTitle, el => el.textContent = cfg.deadlineTitle);
+  set2(ids.refund, el => { el.placeholder = cfg.refundLabel; el.classList.toggle("hidden", !cfg.showRefund); });
+  set2(ids.exchange, el => { el.classList.toggle("hidden", !cfg.showExchange); });
+  set2(ids.warranty, el => { el.placeholder = cfg.warrantyLabel; el.classList.toggle("hidden", !cfg.showWarranty); });
+}
+function setAiSearchStatus(text) {
+  const el = $("#aiSearchHint"); if (!el) return;
+  if (!aiSearchMode) { el.classList.add("hidden"); return; }
+  el.classList.remove("hidden");
+  el.textContent = text || `AI 검색 켜짐 · "지난달 카페에서 5천원 넘게" 처럼 자연어로 입력해보세요.`;
+}
 
 const list = $("#receiptList");
 const search = $("#searchInput");
@@ -67,20 +98,71 @@ function getFilters() {
     dateTo: $("#dateToInput")?.value || "",
     minAmount: Number($("#minAmountInput")?.value) || 0,
     maxAmount: $("#maxAmountInput")?.value ? Number($("#maxAmountInput").value) : Infinity,
+    docType: $("#docTypeFilter")?.value || "all",
+    settlementOnly: $("#settlementFilterInput")?.checked || false,
   };
 }
 function filterReceipts() {
-  const f = getFilters();
+  const manual = getFilters();
+  let f = manual, freeText = manual.q;
+  if (aiSearchMode && manual.q) {
+    const parsed = parseNaturalQuery(search.value);
+    f = {
+      ...manual,
+      category: parsed.category !== "all" ? parsed.category : manual.category,
+      dateFrom: parsed.dateFrom || manual.dateFrom,
+      dateTo: parsed.dateTo || manual.dateTo,
+      minAmount: parsed.minAmount || manual.minAmount,
+      maxAmount: parsed.maxAmount !== Infinity ? parsed.maxAmount : manual.maxAmount,
+    };
+    freeText = parsed.freeText.toLowerCase();
+  }
   return receipts.filter(r => {
     if (f.category !== "all" && r.category !== f.category) return false;
     if (f.payment !== "all" && (r.paymentMethod||"미입력") !== f.payment) return false;
-    if (f.q && !`${r.store||""} ${r.item||""} ${r.paymentMethod||""}`.toLowerCase().includes(f.q)) return false;
+    if (freeText) {
+      const haystack = `${r.store||""} ${r.item||""} ${r.paymentMethod||""}`.toLowerCase();
+      const substringHit = haystack.includes(freeText);
+      const aiHit = aiSearchMode && aiRankedIds && aiRankedIds.has(r.id);
+      if (!substringHit && !aiHit) return false;
+    }
     if (f.dateFrom && (r.date||"") < f.dateFrom) return false;
     if (f.dateTo && (r.date||"") > f.dateTo) return false;
     const amt = Number(r.amount) || 0;
     if (amt < f.minAmount || amt > f.maxAmount) return false;
+    if (f.docType !== "all" && (r.docType||"receipt") !== f.docType) return false;
+    if (f.settlementOnly && !r.settlement) return false;
     return true;
   });
+}
+
+async function runAiSearch(freeText) {
+  if (!freeText) { aiRankedIds = null; setAiSearchStatus(); render(); return; }
+  try {
+    setAiSearchStatus("AI로 의미 기반 검색 중...");
+    const queryVec = await embedTexts(freeText);
+    const texts = receipts.map(r => `${r.store||""} ${r.item||""} ${r.category||""} ${r.paymentMethod||""}`);
+    const vectors = texts.length ? await embedTexts(texts) : [];
+    const scored = receipts.map((r,i) => ({ id: r.id, score: cosineSim(queryVec, vectors[i]) }));
+    aiRankedIds = new Set(scored.filter(s => s.score > 0.55).map(s => s.id));
+    setAiSearchStatus(aiRankedIds.size ? `AI 검색 결과 ${aiRankedIds.size}건을 더 찾았어요.` : "AI 검색: 비슷한 항목을 찾지 못했어요.");
+  } catch (error) {
+    console.error(error);
+    aiRankedIds = null;
+    setAiSearchStatus("AI 모델을 불러오지 못해 기본 검색으로 표시해요.");
+  }
+  render();
+}
+
+function handleSearchInput() {
+  if (aiSearchMode) {
+    const parsed = parseNaturalQuery(search.value);
+    clearTimeout(aiSearchDebounce);
+    aiSearchDebounce = setTimeout(() => runAiSearch(parsed.freeText), 500);
+  } else {
+    aiRankedIds = null;
+  }
+  render();
 }
 function renderPaymentFilterOptions(){
   const el=$("#paymentFilter"); if(!el) return;
@@ -106,9 +188,12 @@ function render(){
     const deadlines = computeDeadlines(r);
     const soonest = Object.entries(deadlines).map(([type,date])=>({type,days:daysUntil(date)})).filter(d=>d.days>=0).sort((a,b)=>a.days-b.days)[0];
     const badge = soonest ? `<span class="deadline-badge ${soonest.days<=settings.reminderDays?"soon":"later"}">${DEADLINE_LABEL[soonest.type]} D-${soonest.days}</span>` : "";
+    const docType = r.docType || "receipt";
+    const docBadge = docType !== "receipt" ? `<span class="doctype-badge">${DOC_TYPE_KOREAN[docType]}</span>` : "";
+    const settleBadge = r.settlement ? `<span class="settlement-badge">정산대상</span>` : "";
     const thumb = r.photo ? `<img class="receipt-thumb" src="${escapeHtml(r.photo)}" alt="영수증 사진">` : `<div class="receipt-icon">₩</div>`;
     const paymentTag = r.paymentMethod ? ` · ${escapeHtml(r.paymentMethod)}` : "";
-    return `<article class="receipt-row">${thumb}<div class="receipt-info"><strong>${escapeHtml(r.store)}</strong><span>${escapeHtml(r.item)} · ${escapeHtml(r.category)}${paymentTag}</span>${badge}</div><div class="receipt-date">${escapeHtml(r.date)} ${escapeHtml(r.time||"")}</div><strong class="receipt-amount">${won(r.amount)}</strong><div class="receipt-actions"><button class="edit-receipt" data-id="${escapeHtml(r.id)}" type="button">수정</button><button class="delete-receipt" data-id="${escapeHtml(r.id)}" type="button">삭제</button></div></article>`;
+    return `<article class="receipt-row">${thumb}<div class="receipt-info"><strong>${escapeHtml(r.store)}</strong><span>${escapeHtml(r.item)} · ${escapeHtml(r.category)}${paymentTag}</span>${badge}${docBadge}${settleBadge}</div><div class="receipt-date">${escapeHtml(r.date)} ${escapeHtml(r.time||"")}</div><strong class="receipt-amount">${won(r.amount)}</strong><div class="receipt-actions"><button class="edit-receipt" data-id="${escapeHtml(r.id)}" type="button">수정</button><button class="delete-receipt" data-id="${escapeHtml(r.id)}" type="button">삭제</button></div></article>`;
   }).join("") : `<div class="empty">아직 영수증이 없습니다.<br><span>영수증 스캔 버튼으로 첫 영수증을 저장해보세요.</span></div>`;
   const month=localDate().slice(0,7), monthReceipts=receipts.filter(r=>String(r.date||"").startsWith(month));
   const monthTotal=monthReceipts.reduce((s,r)=>s+Number(r.amount||0),0);
@@ -267,6 +352,9 @@ function resetScanForm(){
   ["storeInput","amountInput","itemInput","refundDaysInput","exchangeDaysInput","warrantyMonthsInput"].forEach(id=>{const el=$("#"+id); if(el) el.value="";});
   if($("#categoryInput")) $("#categoryInput").value=settings.defaultCategory||"식비";
   if($("#paymentMethodInput")) $("#paymentMethodInput").value=settings.defaultPaymentMethod||"";
+  if($("#docTypeInput")) $("#docTypeInput").value="receipt";
+  if($("#settlementInput")) $("#settlementInput").checked=false;
+  applyDocTypeUI(ADD_DOC_IDS,"receipt");
   if(photoInput) photoInput.value="";
   ocrPhotoDataUrl=null; thumbPhotoDataUrl=null; categoryManuallySet=false;
   if(photoPreview){ photoPreview.src=""; photoPreview.classList.add("hidden"); }
@@ -286,10 +374,11 @@ async function handleSave(){
   if(!currentUser)return window.alert("로그인 상태를 확인해주세요.");
   const store=$("#storeInput")?.value.trim(), amount=Number($("#amountInput")?.value), category=$("#categoryInput")?.value||"기타", item=$("#itemInput")?.value.trim()||"상품 정보 없음", date=$("#dateInput")?.value||localDate(), time=$("#timeInput")?.value||localTime();
   if(!store||!amount)return window.alert("가게명과 금액을 입력해주세요.");
-  const payload={store,item,amount,category,date,time};
+  const payload={store,item,amount,category,date,time,docType:$("#docTypeInput")?.value||"receipt"};
   const refundDays=Number($("#refundDaysInput")?.value); if(refundDays>0) payload.refundDays=refundDays;
   const exchangeDays=Number($("#exchangeDaysInput")?.value); if(exchangeDays>0) payload.exchangeDays=exchangeDays;
   const warrantyMonths=Number($("#warrantyMonthsInput")?.value); if(warrantyMonths>0) payload.warrantyMonths=warrantyMonths;
+  if($("#settlementInput")?.checked) payload.settlement=true;
   if(thumbPhotoDataUrl && settings.savePhoto) payload.photo=thumbPhotoDataUrl;
   const paymentMethod=$("#paymentMethodInput")?.value.trim(); if(paymentMethod) payload.paymentMethod=paymentMethod;
   const button=$("#saveReceipt"); if(button)button.disabled=true;
@@ -300,6 +389,8 @@ function openEdit(id){
   const r=receipts.find(item=>item.id===id); if(!r||!editModal)return; editingId=id;
   if($("#editStoreInput"))$("#editStoreInput").value=r.store||""; if($("#editAmountInput"))$("#editAmountInput").value=Number(r.amount)||""; if($("#editCategoryInput"))$("#editCategoryInput").value=r.category||"기타"; if($("#editItemInput"))$("#editItemInput").value=r.item||""; if($("#editPaymentMethodInput"))$("#editPaymentMethodInput").value=r.paymentMethod||""; if($("#editDateInput"))$("#editDateInput").value=r.date||localDate(); if($("#editTimeInput"))$("#editTimeInput").value=r.time||"00:00";
   if($("#editRefundDaysInput"))$("#editRefundDaysInput").value=r.refundDays||""; if($("#editExchangeDaysInput"))$("#editExchangeDaysInput").value=r.exchangeDays||""; if($("#editWarrantyMonthsInput"))$("#editWarrantyMonthsInput").value=r.warrantyMonths||"";
+  if($("#editDocTypeInput"))$("#editDocTypeInput").value=r.docType||"receipt"; if($("#editSettlementInput"))$("#editSettlementInput").checked=!!r.settlement;
+  applyDocTypeUI(EDIT_DOC_IDS,r.docType||"receipt");
   const editPhoto=$("#editPhotoPreview");
   if(editPhoto){ if(r.photo){editPhoto.src=r.photo;editPhoto.classList.remove("hidden");}else{editPhoto.src="";editPhoto.classList.add("hidden");} }
   editModal.classList.remove("hidden");
@@ -310,7 +401,8 @@ async function updateReceipt(){
   if(!store||!amount||!date)return window.alert("가게명, 금액, 날짜를 입력해주세요.");
   const refundDays=Number($("#editRefundDaysInput")?.value), exchangeDays=Number($("#editExchangeDaysInput")?.value), warrantyMonths=Number($("#editWarrantyMonthsInput")?.value);
   const paymentMethod=$("#editPaymentMethodInput")?.value.trim()||null;
-  const payload={store,amount,category,item,date,time,paymentMethod,refundDays:refundDays>0?refundDays:null,exchangeDays:exchangeDays>0?exchangeDays:null,warrantyMonths:warrantyMonths>0?warrantyMonths:null};
+  const docType=$("#editDocTypeInput")?.value||"receipt";
+  const payload={store,amount,category,item,date,time,paymentMethod,docType,settlement:$("#editSettlementInput")?.checked||null,refundDays:refundDays>0?refundDays:null,exchangeDays:exchangeDays>0?exchangeDays:null,warrantyMonths:warrantyMonths>0?warrantyMonths:null};
   try{setSyncStatus("Firebase 저장 중...",false);await update(ref(db,`users/${currentUser.uid}/receipts/${editingId}`),payload);closeEdit();setSyncStatus("Firebase 동기화됨",true);}catch(error){console.error(error);setSyncStatus("Firebase 연결 실패",false);window.alert(`영수증 수정에 실패했습니다.\n${error.message||"Firebase 설정을 확인해주세요."}`);}
 }
 async function deleteReceipt(id){
@@ -324,9 +416,9 @@ function toCsvValue(v){ return `"${String(v??"").replace(/"/g,'""')}"`; }
 function exportCsv(){
   const rows=filterReceipts();
   if(!rows.length)return window.alert("내보낼 영수증이 없습니다.");
-  const header=["날짜","시간","상호명","카테고리","상품명","금액","결제수단","환불기한(일)","교환기한(일)","보증기간(개월)"];
+  const header=["날짜","시간","상호명","카테고리","상품명","금액","결제수단","환불기한(일)","교환기한(일)","보증기간(개월)","문서종류","정산대상"];
   const lines=[header.map(toCsvValue).join(",")];
-  rows.forEach(r=>lines.push([r.date||"",r.time||"",r.store||"",r.category||"",r.item||"",Number(r.amount)||0,r.paymentMethod||"",r.refundDays||"",r.exchangeDays||"",r.warrantyMonths||""].map(toCsvValue).join(",")));
+  rows.forEach(r=>lines.push([r.date||"",r.time||"",r.store||"",r.category||"",r.item||"",Number(r.amount)||0,r.paymentMethod||"",r.refundDays||"",r.exchangeDays||"",r.warrantyMonths||"",DOC_TYPE_KOREAN[r.docType||"receipt"]||"영수증",r.settlement?"Y":"N"].map(toCsvValue).join(",")));
   const blob=new Blob(["﻿"+lines.join("\r\n")],{type:"text/csv;charset=utf-8;"});
   const url=URL.createObjectURL(blob), a=document.createElement("a");
   a.href=url; a.download=`영수증모아_${localDate()}.csv`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
@@ -509,6 +601,8 @@ recognizeBtn?.addEventListener("click", runOcr);
 
 $("#storeInput")?.addEventListener("input", ()=>{ if(!categoryManuallySet && $("#categoryInput")) $("#categoryInput").value=guessCategory($("#storeInput").value); });
 $("#categoryInput")?.addEventListener("change", ()=>{ categoryManuallySet=true; });
+$("#docTypeInput")?.addEventListener("change", ()=>applyDocTypeUI(ADD_DOC_IDS,$("#docTypeInput").value));
+$("#editDocTypeInput")?.addEventListener("change", ()=>applyDocTypeUI(EDIT_DOC_IDS,$("#editDocTypeInput").value));
 
 onAuthStateChanged(auth,user=>{
   if(!user){window.location.replace("../login/");return;}
@@ -547,10 +641,19 @@ document.querySelectorAll(".tab-btn").forEach(btn=>btn.addEventListener("click",
   render();
 }));
 updateTabIndicator();
-$("#resetFilters")?.addEventListener("click",()=>{ ["dateFromInput","dateToInput","minAmountInput","maxAmountInput"].forEach(id=>{const el=$("#"+id); if(el)el.value="";}); render(); });
+$("#resetFilters")?.addEventListener("click",()=>{ ["dateFromInput","dateToInput","minAmountInput","maxAmountInput"].forEach(id=>{const el=$("#"+id); if(el)el.value="";}); if($("#docTypeFilter"))$("#docTypeFilter").value="all"; if($("#settlementFilterInput"))$("#settlementFilterInput").checked=false; render(); });
 $("#exportBtn")?.addEventListener("click",exportCsv);
-["dateFromInput","dateToInput","minAmountInput","maxAmountInput"].forEach(id=>$("#"+id)?.addEventListener("input",render));
-search?.addEventListener("input",render); filter?.addEventListener("change",render); $("#paymentFilter")?.addEventListener("change",render);
+["dateFromInput","dateToInput","minAmountInput","maxAmountInput","docTypeFilter"].forEach(id=>$("#"+id)?.addEventListener("input",render));
+$("#docTypeFilter")?.addEventListener("change",render); $("#settlementFilterInput")?.addEventListener("change",render);
+search?.addEventListener("input",handleSearchInput); filter?.addEventListener("change",render); $("#paymentFilter")?.addEventListener("change",render);
+$("#aiSearchToggle")?.addEventListener("click",()=>{
+  aiSearchMode=!aiSearchMode; aiRankedIds=null;
+  $("#aiSearchToggle").classList.toggle("active",aiSearchMode);
+  $("#aiSearchToggle").setAttribute("aria-pressed",String(aiSearchMode));
+  setAiSearchStatus();
+  if(aiSearchMode && search?.value.trim()){ const parsed=parseNaturalQuery(search.value); runAiSearch(parsed.freeText); }
+  else render();
+});
 list?.addEventListener("click",event=>{
   const editButton=event.target.closest(".edit-receipt"),deleteButton=event.target.closest(".delete-receipt"),thumb=event.target.closest(".receipt-thumb");
   if(editButton)openEdit(editButton.dataset.id);

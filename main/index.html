@@ -16,7 +16,8 @@
 <div class="filter-row"><label>카테고리<select id="categoryFilter"><option value="all">전체 카테고리</option><option value="식비">식비</option><option value="카페">카페</option><option value="교통">교통</option><option value="생필품">생필품</option><option value="쇼핑">쇼핑</option><option value="의료">의료</option><option value="기타">기타</option></select></label><label>결제수단<select id="paymentFilter"><option value="all">전체 결제수단</option></select></label></div>
 <div class="filter-row"><label>시작일<input id="dateFromInput" type="date"></label><label>종료일<input id="dateToInput" type="date"></label></div>
 <div class="filter-row"><label>최소 금액<input id="minAmountInput" type="number" inputmode="numeric" placeholder="0"></label><label>최대 금액<input id="maxAmountInput" type="number" inputmode="numeric" placeholder="제한 없음"></label></div>
-<div class="filter-row"><label>문서 종류<select id="docTypeFilter"><option value="all">전체 문서</option><option value="receipt">영수증</option><option value="medicine">약 봉투</option><option value="warranty">보증서</option></select></label><label class="filter-check"><input id="settlementFilterInput" type="checkbox"><span>정산 대상만 보기</span></label></div>
+<div class="filter-row filter-row-single"><label>문서 종류<select id="docTypeFilter"><option value="all">전체 문서</option><option value="receipt">영수증</option><option value="medicine">약 봉투</option><option value="warranty">보증서</option></select></label></div>
+<label class="filter-check"><input id="settlementFilterInput" type="checkbox"><span>정산 대상만 보기</span></label>
 <div class="filter-actions"><button id="resetFilters" class="ghost-btn" type="button">초기화</button><button id="exportBtn" class="ghost-btn" type="button">CSV로 내보내기</button></div>
 </section>
 <section class="content-card"><div class="section-title"><div><p class="eyebrow blue-eyebrow">RECENT</p><h2>최근 영수증</h2></div></div><div id="receiptList" class="receipt-list"></div></section>

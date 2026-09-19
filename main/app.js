@@ -650,6 +650,7 @@ $("#aiSearchToggle")?.addEventListener("click",()=>{
   aiSearchMode=!aiSearchMode; aiRankedIds=null;
   $("#aiSearchToggle").classList.toggle("active",aiSearchMode);
   $("#aiSearchToggle").setAttribute("aria-pressed",String(aiSearchMode));
+  search?.closest(".search-box")?.classList.toggle("ai-glow",aiSearchMode);
   setAiSearchStatus();
   if(aiSearchMode && search?.value.trim()){ const parsed=parseNaturalQuery(search.value); runAiSearch(parsed.freeText); }
   else render();

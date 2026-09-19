@@ -1,8 +1,10 @@
 import { auth, db, authPersistenceReady } from "../login/firebase-config.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js";
 import { ref, onValue } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js";
+import { summarizeExpenses } from "../ai/engine.js";
 
 const $ = (selector) => document.querySelector(selector);
+const DOC_TYPE_KOREAN = { receipt: "영수증", medicine: "약 봉투", warranty: "보증서" };
 let receipts = [];
 let preset = "thisMonth";
 
@@ -34,27 +36,73 @@ function currentRange() {
 
 function filteredReceipts() {
   const { from, to } = currentRange();
+  const settlementOnly = $("#settlementOnlyInput")?.checked;
   return receipts.filter(r => {
     if (from && (r.date || "") < from) return false;
     if (to && (r.date || "") > to) return false;
+    if (settlementOnly && !r.settlement) return false;
     return true;
   }).sort((a, b) => receiptDateTime(a) - receiptDateTime(b));
 }
 
+function updateSettlementSummary() {
+  const { from, to } = currentRange();
+  const inRange = receipts.filter(r => (!from || (r.date||"") >= from) && (!to || (r.date||"") <= to));
+  const settleList = inRange.filter(r => r.settlement);
+  const total = settleList.reduce((s,r)=>s+Number(r.amount||0),0);
+  const el = $("#reportSettlementSummary");
+  if (!el) return;
+  el.textContent = settleList.length ? `정산 대상 ${settleList.length}건 · ${won(total)}` : "정산 대상으로 표시된 영수증이 없습니다.";
+}
+
+function computeStats(list, total) {
+  const byCategory = {};
+  list.forEach(r => { const c = r.category || "기타"; byCategory[c] = (byCategory[c]||0) + Number(r.amount||0); });
+  const sorted = Object.entries(byCategory).map(([c, v]) => ({ c, v })).sort((a, b) => b.v - a.v);
+  const { from, to } = currentRange();
+  return { from: from || "전체", to: to || "전체", total, count: list.length, avg: list.length ? Math.round(total / list.length) : 0, byCategory: sorted };
+}
+
+function buildSummaryText(list, total) {
+  if (!list.length) return "이 기간에 저장된 영수증이 없습니다.";
+  const stats = computeStats(list, total);
+  const top = stats.byCategory[0];
+  const { from, to } = currentRange();
+  const periodText = from && to ? `${from}부터 ${to}까지` : "선택한 기간 동안";
+  const topText = top ? ` 가장 지출이 큰 카테고리는 ${top.c}(${won(top.v)})입니다.` : "";
+  return `${periodText} 총 ${list.length}건의 영수증에서 ${won(total)}을 지출했습니다. 평균 결제 금액은 ${won(stats.avg)}입니다.${topText}`;
+}
+
+function formatIssueDate(date = new Date()) { return `${date.getFullYear()}년 ${date.getMonth()+1}월 ${date.getDate()}일`; }
+
+function updateDocMeta() {
+  if ($("#reportIssueDate")) $("#reportIssueDate").textContent = formatIssueDate();
+  const { from, to } = currentRange();
+  let periodLabel = "전체 기간";
+  if (from && to) periodLabel = `${from} ~ ${to}`;
+  else if (from) periodLabel = `${from} 이후`;
+  else if (to) periodLabel = `${to} 까지`;
+  if ($("#reportPeriodLabel")) $("#reportPeriodLabel").textContent = periodLabel;
+}
+
 function render() {
+  updateDocMeta();
+  updateSettlementSummary();
   const list = filteredReceipts();
   const total = list.reduce((s, r) => s + Number(r.amount || 0), 0);
   if ($("#reportTotal")) $("#reportTotal").textContent = won(total);
   if ($("#reportCount")) $("#reportCount").textContent = `${list.length}장`;
   if ($("#reportAvg")) $("#reportAvg").textContent = won(list.length ? total / list.length : 0);
+  if ($("#reportSummaryText")) $("#reportSummaryText").textContent = buildSummaryText(list, total);
+  if ($("#aiSummaryStatus")) $("#aiSummaryStatus").classList.add("hidden");
 
   renderBreakdown("#reportCategoryBreakdown", list, r => r.category || "기타");
   renderBreakdown("#reportPaymentBreakdown", list, r => r.paymentMethod || "미입력");
 
   const body = $("#reportTableBody");
   if (body) {
-    body.innerHTML = list.length ? list.map(r => `<tr><td>${escapeHtml(r.date)} ${escapeHtml(r.time || "")}</td><td>${escapeHtml(r.store)}</td><td>${escapeHtml(r.category)}</td><td>${escapeHtml(r.paymentMethod || "-")}</td><td class="num">${won(r.amount)}</td></tr>`).join("")
-      : `<tr><td colspan="5"><div class="report-empty">이 기간에 저장된 영수증이 없습니다.</div></td></tr>`;
+    body.innerHTML = list.length ? list.map(r => `<tr><td>${escapeHtml(r.date)} ${escapeHtml(r.time || "")}</td><td>${escapeHtml(r.store)}</td><td>${escapeHtml(r.category)}</td><td>${DOC_TYPE_KOREAN[r.docType||"receipt"]||"영수증"}</td><td>${escapeHtml(r.paymentMethod || "-")}</td><td class="num">${won(r.amount)}</td></tr>`).join("")
+      : `<tr><td colspan="6"><div class="report-empty">이 기간에 저장된 영수증이 없습니다.</div></td></tr>`;
   }
   if ($("#reportTableTotal")) $("#reportTableTotal").textContent = won(total);
 }
@@ -82,9 +130,9 @@ function toCsvValue(v) { return `"${String(v ?? "").replace(/"/g, '""')}"`; }
 function exportCsv() {
   const list = filteredReceipts();
   if (!list.length) return window.alert("내보낼 영수증이 없습니다.");
-  const header = ["날짜", "시간", "가게명", "카테고리", "결제수단", "금액"];
+  const header = ["날짜", "시간", "가게명", "카테고리", "문서종류", "결제수단", "금액", "정산대상"];
   const lines = [header.map(toCsvValue).join(",")];
-  list.forEach(r => lines.push([r.date || "", r.time || "", r.store || "", r.category || "", r.paymentMethod || "", Number(r.amount) || 0].map(toCsvValue).join(",")));
+  list.forEach(r => lines.push([r.date || "", r.time || "", r.store || "", r.category || "", DOC_TYPE_KOREAN[r.docType||"receipt"]||"영수증", r.paymentMethod || "", Number(r.amount) || 0, r.settlement?"Y":"N"].map(toCsvValue).join(",")));
   const { from, to } = currentRange();
   const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob), a = document.createElement("a");
@@ -96,6 +144,28 @@ $("#rangeFrom")?.addEventListener("change", () => { document.querySelectorAll(".
 $("#rangeTo")?.addEventListener("change", () => { document.querySelectorAll(".preset-btn").forEach(b => b.classList.remove("active")); render(); });
 $("#printReportBtn")?.addEventListener("click", () => window.print());
 $("#exportReportCsvBtn")?.addEventListener("click", exportCsv);
+$("#settlementOnlyInput")?.addEventListener("change", render);
+
+$("#aiSummaryBtn")?.addEventListener("click", async () => {
+  const list = filteredReceipts();
+  if (!list.length) return window.alert("이 기간에는 요약할 영수증이 없습니다.");
+  const total = list.reduce((s, r) => s + Number(r.amount || 0), 0);
+  const stats = computeStats(list, total);
+  const btn = $("#aiSummaryBtn"), status = $("#aiSummaryStatus");
+  if (btn) btn.disabled = true;
+  status?.classList.remove("hidden");
+  if (status) status.textContent = "AI 모델을 불러오는 중입니다 (처음 실행 시 다소 시간이 걸릴 수 있어요)...";
+  try {
+    const text = await summarizeExpenses(stats, (pct, label) => { if (status) status.textContent = `${label} 다운로드 중... ${pct}%`; });
+    if (text && $("#reportSummaryText")) $("#reportSummaryText").textContent = text;
+    if (status) status.textContent = "AI 요약이 생성되었습니다.";
+  } catch (error) {
+    console.error(error);
+    if (status) status.textContent = "AI 모델을 불러오지 못해 기본 요약을 표시합니다. (네트워크 상태나 브라우저 호환성을 확인해주세요)";
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+});
 
 async function handleLogout() { try { await authPersistenceReady; await signOut(auth); window.location.replace("../login/"); } catch (error) { window.alert(`로그아웃에 실패했습니다.\n${error.message || "잠시 후 다시 시도해주세요."}`); } }
 $("#logoutBtn")?.addEventListener("click", handleLogout);
@@ -104,6 +174,7 @@ $("#mobileLogoutBtn")?.addEventListener("click", handleLogout);
 let stopReceipts = null;
 onAuthStateChanged(auth, (user) => {
   if (!user) { window.location.replace("../login/"); return; }
+  if ($("#reportAuthor")) $("#reportAuthor").textContent = user.displayName || user.email || "-";
   if (stopReceipts) stopReceipts();
   stopReceipts = onValue(ref(db, `users/${user.uid}/receipts`), (snapshot) => {
     const data = snapshot.val() || {};
